@@ -99,6 +99,16 @@ details.pdet summary{cursor:pointer;color:var(--acc);font-size:14px;margin-top:8
 .seg3 input{margin-left:4px;width:52px;padding:3px 5px}.seg3 button{padding:3px 7px;font-size:12px}
 table.tt{table-layout:fixed}table.tt td,table.tt th{padding:6px 5px;vertical-align:top}table.tt td.n{white-space:nowrap;font-size:13px}table.tt .seg3{flex-wrap:wrap;margin-top:4px}table.tt .seg3 button{padding:2px 6px;font-size:11px}
 tr.unm td{background:var(--warnbg)}
+
+:root{--g1:#5b4a8a;--g2:#2f9e8a;--g3:#d9822b;--g4:#c9503f;--g5:#b2557a;--g6:#3d7cc9;--g7:#7c8aa0;--g8:#c9a227;--g9:#b9b4a8;--g10:#8a5a2b}
+@media(prefers-color-scheme:dark){:root{--g1:#9b88d4;--g2:#4fb9a5;--g3:#f0a066;--g4:#e57c6c;--g5:#d98aac;--g6:#6fa3e6;--g7:#98a5b8;--g8:#e0c15a;--g9:#8a867c;--g10:#c99560}}
+.hbar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin:6px 0 12px;background:var(--line,#eee)}
+.hbar span{display:block;height:100%}
+.rk{margin:0 0 10px}.rk-t{display:flex;justify-content:space-between;gap:8px;font-size:14px;margin-bottom:3px}
+.rk-t i,.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.rk-b{height:6px;border-radius:3px;background:rgba(127,127,127,.15);overflow:hidden}.rk-b span{display:block;height:100%;border-radius:3px}
+table.gh td:first-child{white-space:normal;width:44%}.pbtn{display:flex;flex-direction:column;gap:4px;align-items:stretch}.pbtn button{white-space:normal}
+table.gh{width:100%;font-size:13px;margin-top:8px}table.gh th,table.gh td{padding:5px 4px}table.gh tr[data-month]{cursor:pointer}
 </style>
 </head>
 <body>
@@ -589,7 +599,7 @@ function pagosCard(k){
     if(st&&st.by==='me')btn='<span class="chip ok">Lo pagaste vos</span> <button class="lnk payundo" data-f="'+f.key+'">deshacer</button>';
     else if(st&&st.by==='other')btn='<span class="chip ok">Lo pagó '+e(nameOf(st.it.payer))+'</span> <button class="lnk payundo" data-f="'+f.key+'" data-by="other">deshacer</button>';
     else if(st&&st.by==='splitwise')btn='<span class="chip">Ya está en Splitwise ('+e(nameOf(st.it.payer))+')</span>';
-    else btn='<button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button> <button class="pay" data-f="'+f.key+'" data-who="other">Lo pagó '+e(fn)+'</button>';
+    else btn='<div class="pbtn"><button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button><button class="pay" data-f="'+f.key+'" data-who="other">Lo pagó '+e(fn)+'</button></div>';
     h+='<tr><td>'+e(f.label)+'<div class="note">Total '+money(tot)+' · tu parte '+sh+'%'+(!st?' · todavía no cuenta en el saldo':'')+'</div></td><td class="n">'+money(tot*sh/100)+'</td><td class="n">'+btn+'</td></tr>';
   });
   if(items.length){
@@ -606,42 +616,131 @@ function bindPagos(v,k){
 }
 
 /* ---------- MES ---------- */
+/* ---------- MES: solo datos reales y compromisos ya cargados (sin estimaciones) ---------- */
+var GRP=[['Vivienda y servicios','--g1'],['Comida y supermercado','--g2'],['Transporte','--g3'],['Salud','--g4'],['Ocio y suscripciones','--g5'],['Compras','--g6'],['Impuestos y comisiones','--g7'],['Educación','--g8'],['Puntuales','--g10'],['Sin clasificar','--g9']];
+function gcol(n){var g=GRP.find(function(x){return x[0]===n});return'var('+(g?g[1]:'--g9')+')'}
+var GKW=[
+ ['Comida y supermercado',['super','verdu','carnic','dietet','panader','pan ','pollo','pescad','helado','huevo','empanad','pizza','piza','sushi','asado','carne','morcilla','cookies','picada','tuper','almacen','fiambre','fruta','papaya','merienda']],
+ ['Transporte',['nafta','ypf','peaje','caminos','uber','cabify','estacion','combustible','flete']],
+ ['Salud',['farmac','medic','dentist','psicolog','kinesi']],
+ ['Vivienda y servicios',['alquiler','expensa','luz ','internet','epec','gas ','cortina','pintur','limpi','agua','seguro']],
+ ['Ocio y suscripciones',['cumple','regalo','cine','bebida','salida','gimnasio','spotify','netflix','bar ']]];
+function grpOf(cat,desc){
+  var c=cat||'General';
+  if(c==='Supermercado'||c==='Comida y delivery')return'Comida y supermercado';
+  if(c==='Transporte'||c==='Salud'||c==='Educación')return c;
+  if(c==='Ocio'||c==='Suscripciones')return'Ocio y suscripciones';
+  if(c==='Ropa'||c==='Compras online')return'Compras';
+  if(c==='Impuestos y comisiones')return c;
+  if(['Alquiler','Expensas Tierralta','Servicios depto','Servicios','Hogar'].indexOf(c)>=0)return'Vivienda y servicios';
+  if(c==='General'){
+    var n=' '+nk(desc||'')+' ';
+    for(var i=0;i<GKW.length;i++){for(var j=0;j<GKW[i][1].length;j++){if(n.indexOf(GKW[i][1][j])>=0)return GKW[i][0]}}
+    return'Sin clasificar';
+  }
+  return'Sin clasificar';
+}
+function hasReal(k){return (months[k]||[]).length>0||(H.ready&&(H.items[k]||[]).some(function(it){return it.type!=='pago'}))}
+function monthGroups(k){
+  var g={},add=function(n,v){if(v)g[n]=(g[n]||0)+v},s=monthSummary(k);
+  add('Vivienda y servicios',s.rent+s.exp);
+  cardItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine)});
+  cuentaItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine)});
+  hogarDetail(k).forEach(function(x){add(grpOf(x.it.cat,x.it.desc),x.mine)});
+  plannedFor(k).filter(function(p){return !p.auto}).forEach(function(p){add('Puntuales',p.amt)});
+  var tot=0,pos=0;Object.keys(g).forEach(function(n){tot+=g[n];if(g[n]>0)pos+=g[n]});
+  return{g:g,total:tot,pos:pos};
+}
+function groupRank(mg){
+  var rows=GRP.map(function(x){return{n:x[0],v:mg.g[x[0]]||0}}).filter(function(r){return r.v>0}).sort(function(a,b){return b.v-a.v});
+  if(!rows.length)return'<p class="note">Todavía no hay gastos cargados en este mes.</p>';
+  var mx=rows[0].v;
+  return'<div class="hbar">'+rows.map(function(r){return'<span style="width:'+(r.v/mg.pos*100)+'%;background:'+gcol(r.n)+'" title="'+e(r.n)+': '+money(r.v)+'"></span>'}).join('')+'</div>'+
+   rows.map(function(r){return'<div class="rk"><div class="rk-t"><span><i style="background:'+gcol(r.n)+'"></i>'+e(r.n)+'</span><span class="n"><b>'+money(r.v)+'</b> <span class="note">'+Math.round(r.v/mg.pos*100)+'%</span></span></div><div class="rk-b"><span style="width:'+(r.v/mx*100)+'%;background:'+gcol(r.n)+'"></span></div></div>'}).join('');
+}
+function grpHistory(k){
+  var ms=[],i;for(i=-5;i<=0;i++){var m=shiftMonth(k,i);if(!hasReal(m))continue;var mg=monthGroups(m);if(mg.pos>0)ms.push({k:m,mg:mg})}
+  if(ms.length<2)return'<p class="note">El historial aparece cuando haya dos meses con gastos cargados.</p>';
+  var mx=Math.max.apply(null,ms.map(function(x){return x.mg.pos}));
+  var tot={};ms.forEach(function(x){Object.keys(x.mg.g).forEach(function(n){if(x.mg.g[n]>0)tot[n]=(tot[n]||0)+x.mg.g[n]})});
+  var names=GRP.map(function(x){return x[0]}).filter(function(n){return tot[n]}).sort(function(a,b){return tot[b]-tot[a]});
+  var h='<div class="chart small">'+ms.map(function(x){
+    return'<div class="col'+(x.k===ui.month?' cur':'')+'" data-month="'+x.k+'"><div class="bw"><div class="stack">'+names.map(function(n){var v=x.mg.g[n]||0;return v>0?'<div class="seg" style="height:'+(v/mx*100)+'%;background:'+gcol(n)+'" title="'+e(n)+': '+money(v)+'"></div>':''}).join('')+'</div></div><div class="lb">'+mshort(x.k)+'</div></div>'}).join('')+'</div>'+
+   '<div class="legend">'+names.map(function(n){return'<span><i style="background:'+gcol(n)+'"></i>'+e(n)+'</span>'}).join('')+'</div>';
+  var last=ms.slice(-3);
+  h+='<table class="mt gh"><tr><th></th>'+last.map(function(x){return'<th class="n">'+e(mshort(x.k))+'</th>'}).join('')+'</tr>'+
+   names.map(function(n){return'<tr><td><i class="dot" style="background:'+gcol(n)+'"></i>'+e(n)+'</td>'+last.map(function(x){var v=x.mg.g[n]||0;return'<td class="n">'+(v>0?money(v):'—')+'</td>'}).join('')+'</tr>'}).join('')+
+   '<tr class="t"><td>Total</td>'+last.map(function(x){return'<td class="n">'+money(x.mg.total)+'</td>'}).join('')+'</tr></table>';
+  return h;
+}
+function committedList(k){
+  var out=[],c0=curMonth(),i;
+  for(i=1;i<=6;i++){
+    var m=shiftMonth(c0,i),s=monthSummary(m);
+    out.push({k:m,rent:s.rent,exp:s.exp,cu:s.cardCu,pun:s.puntual,inc:s.inc,tot:s.rent+s.exp+s.cardCu+s.puntual});
+  }
+  return out;
+}
+var CSEG=[['rent','Alquiler','var(--g1)'],['exp','Expensas y servicios','var(--g8)'],['cu','Cuotas de tarjeta','var(--g3)'],['pun','Puntuales','var(--g10)']];
+function committedCard(){
+  var list=committedList();
+  if(!list.some(function(x){return x.tot>0}))return'<div class="card"><h2>Lo que ya tenés comprometido</h2><p class="note">Todavía no hay alquiler, expensas ni cuotas cargados para los próximos meses.</p></div>';
+  var mx=Math.max.apply(null,list.map(function(x){return x.tot}).concat([1]));
+  var h='<div class="card"><h2>Lo que ya tenés comprometido</h2><p class="note" style="margin-top:0">Solo lo seguro: alquiler, expensas, cuotas de tarjeta que ya tenés financiadas y puntuales que cargaste. No incluye gastos del día a día.</p><div class="chart small">'+list.map(function(x){
+    return'<div class="col'+(x.k===ui.month?' cur':'')+'" data-month="'+x.k+'"><div class="bw"><div class="stack">'+CSEG.map(function(g){var v=x[g[0]];return v>0?'<div class="seg" style="height:'+(v/mx*100)+'%;background:'+g[2]+'" title="'+g[1]+': '+money(v)+'"></div>':''}).join('')+'</div></div><div class="lb">'+mshort(x.k)+'</div></div>'}).join('')+'</div>'+
+   '<div class="legend">'+CSEG.map(function(g){return'<span><i style="background:'+g[2]+'"></i>'+g[1]+'</span>'}).join('')+'</div>'+
+   '<table class="mt gh"><tr><th>Mes</th><th class="n">Alquiler y exp.</th><th class="n">Cuotas</th><th class="n">Comprometido</th></tr>'+
+   list.map(function(x){return'<tr data-month="'+x.k+'"><td>'+e(mshort(x.k))+'</td><td class="n">'+(x.rent+x.exp?money(x.rent+x.exp):'—')+'</td><td class="n">'+(x.cu?money(x.cu):'—')+'</td><td class="n"><b>'+money(x.tot)+'</b></td></tr>'}).join('')+'</table>'+
+   '<p class="note">Cuando una cuota termina, ese monto baja del mes siguiente.</p></div>';
+  return h;
+}
 function vMes(){
-  var v=$('#view'),k=ui.month,s=monthSummary(k),L=lastMonths();
-  var list=[];for(var i=-2;i<=9;i++)list.push(monthSummary(shiftMonth(k,i)));
-  var needSetup=!cfg.incPlan||!cfg.rentPlan;
-  var h='';
+  var v=$('#view'),k=ui.month,s=monthSummary(k),mg=monthGroups(k),fut=!hasReal(k);
+  var needSetup=!cfg.incPlan||!cfg.rentPlan,h='';
   if(needSetup)h+='<div class="alert">Para ver cuánto sobra cada mes cargá tu <b>ingreso</b> y tu <b>alquiler</b> con sus aumentos. <button class="lnk" data-go="plan">Cargarlos</button></div>';
-  h+='<div class="kpis">'+
-   '<div class="kpi"><div class="l">Ingreso</div><div class="v">'+(s.inc?money(s.inc):'—')+'</div><div class="s">'+(s.incRaise?'<span class="chip">aumento '+(s.incRaise.pct?s.incRaise.pct+'%':'% a definir')+'</span>':'Según tu plan de ingresos')+'</div></div>'+
-   '<div class="kpi"><div class="l">Gastos '+(s.isProj?'(estimados)':'del mes')+'</div><div class="v">'+money(s.total)+'</div><div class="s">'+unfinished(k)+(s.inc?pct(s.total,s.inc)+' del ingreso':'')+'</div></div>'+
-   '<div class="kpi"><div class="l">Sobra</div><div class="v '+(s.inc?(s.sobra>=0?'good':'badc'):'')+'">'+(s.inc?money(s.sobra):'—')+'</div><div class="s">'+(cfg.fx&&s.inc?usd(s.sobra/cfg.fx):'Ingreso − gastos')+'</div></div>'+
-   '<div class="kpi"><div class="l">Ahorro registrado</div><div class="v">'+usd(savOf(k,'ahorro'))+'</div><div class="s">'+(savOf(k,'uso')?'Usaste '+usd(savOf(k,'uso')):'<button class="lnk" data-go="ahorro">Registrar</button>')+'</div></div></div>';
-  h+='<div class="card"><h2>'+e(mlabel(k))+(s.isProj?' <span class="chip">estimado</span>':'')+'</h2><table class="calc">'+
-   '<tr><td>Alquiler e impuestos'+(s.rentShare<100&&s.rentTotal?'<div class="note">Total '+money(s.rentTotal)+' · tu parte '+s.rentShare+'%</div>':'')+(s.rentRaise?'<span class="chip">aumento '+(s.rentRaise.pct?s.rentRaise.pct+'%':'% a definir')+'</span>':'')+'</td><td class="n">'+money(s.rent)+'</td></tr>'+
-   (s.expT?'<tr><td>Expensas Tierralta'+(shareOf('expTierralta')<100?'<div class="note">Tu parte '+shareOf('expTierralta')+'% de '+money(planAmt(cfg.expTierralta,k))+'</div>':'')+'</td><td class="n">'+money(s.expT)+'</td></tr>':'')+
-   (s.expS?'<tr><td>Servicios del departamento<div class="note">Se pagan con la expensa · tu parte '+shareOf('servDepto')+'%</div></td><td class="n">'+money(s.expS)+'</td></tr>':'')+
-   '<tr class="lk" data-go="tarjetas"><td>Tarjetas'+(s.proj.card?'<span class="chip">cuotas conocidas + promedio</span>':'')+'<div class="note">Cuotas '+money(s.cardCu)+' · compras del mes '+money(s.cardCorr)+'</div>'+(s.cardPaid&&s.cardPaid-s.card>1?'<div class="note">Pagás '+money(s.cardPaid)+' en total; '+money(s.cardPaid-s.card)+' son de '+e(fname())+'</div>':'')+'</td><td class="n">'+money(s.card)+'</td></tr>'+
-   '<tr class="lk" data-go="vida"><td>Vida diaria (Splitwise)'+(s.proj.vida?'<span class="chip">promedio 3 meses</span>':'')+(H.ready?'':'<div class="note">Armá el hogar para sumar esto.</div>')+'</td><td class="n">'+money(s.vida)+'</td></tr>'+
-   '<tr class="lk" data-go="mov"><td>Cuenta (otros gastos directos)'+(s.proj.cuenta?'<span class="chip">promedio 3 meses</span>':'')+'</td><td class="n">'+money(s.cuenta)+'</td></tr>'+
-   (s.puntual?'<tr><td>Gastos puntuales cargados</td><td class="n">'+money(s.puntual)+'</td></tr>':'')+
-   '<tr class="t"><td>Total de gastos</td><td class="n">'+money(s.total)+'</td></tr>'+
-   '<tr><td>Ingreso</td><td class="n">'+money(s.inc)+'</td></tr>'+
-   '<tr class="t"><td>Sobra</td><td class="n '+(s.sobra>=0?'good':'badc')+'">'+money(s.sobra)+'</td></tr></table>'+
-   (cuentaGen(k)?'<p class="note">Sin clasificar en tu cuenta: <b>'+money(cuentaGen(k))+'</b> (transferencias, compra de dólares, retiros). '+(cfg.sumGeneral?'Se está sumando.':'No se suma: puede ser alquiler, ahorro o gastos que ya están en Splitwise.')+' <label><input type="checkbox" id="sumgen"'+(cfg.sumGeneral?' checked':'')+'> sumarlo igual</label> · <button class="lnk" data-go="mov" data-cat="General">clasificar</button></p>':'')+
-   (k===curMonth()?'<p class="note">Este mes todavía no cerró: lo cargado puede subestimar. Las tarjetas se cuentan por mes de resumen, no por fecha de compra.</p>':'')+
-   (FIJOS.some(function(f){return planAmt(cfg[f.key],k)!=null})?'<p class="note">Alquiler, expensas y servicios salen de tus planes fijos: se ignoran los gastos de cuenta y Splitwise con esa categoría (o con las palabras que definiste) para no contarlos dos veces.</p>':'')+'</div>'+pagosCard(k);
+  var comm=s.rent+s.exp+s.cardCu+s.puntual;
+  if(fut){
+    h+='<div class="kpis">'+
+     '<div class="kpi"><div class="l">Ingreso</div><div class="v">'+(s.inc?money(s.inc):'—')+'</div><div class="s">'+(s.incRaise?'<span class="chip">aumento '+(s.incRaise.pct?s.incRaise.pct+'%':'% a definir')+'</span>':'Según tu plan de ingresos')+'</div></div>'+
+     '<div class="kpi"><div class="l">Ya comprometido</div><div class="v">'+money(comm)+'</div><div class="s">Alquiler, expensas y cuotas</div></div>'+
+     '<div class="kpi"><div class="l">Queda antes del día a día</div><div class="v '+(s.inc?(s.inc-comm>=0?'good':'badc'):'')+'">'+(s.inc?money(s.inc-comm):'—')+'</div><div class="s">Ingreso − comprometido</div></div>'+
+     '<div class="kpi"><div class="l">Ahorro registrado</div><div class="v">'+usd(savOf(k,'ahorro'))+'</div><div class="s"><button class="lnk" data-go="ahorro">Registrar</button></div></div></div>';
+  }else{
+    h+='<div class="kpis">'+
+     '<div class="kpi"><div class="l">Ingreso</div><div class="v">'+(s.inc?money(s.inc):'—')+'</div><div class="s">'+(s.incRaise?'<span class="chip">aumento '+(s.incRaise.pct?s.incRaise.pct+'%':'% a definir')+'</span>':'Según tu plan de ingresos')+'</div></div>'+
+     '<div class="kpi"><div class="l">Gastado</div><div class="v">'+money(mg.total)+'</div><div class="s">'+unfinished(k)+(s.inc?pct(mg.total,s.inc)+' del ingreso':'')+'</div></div>'+
+     '<div class="kpi"><div class="l">Sobra</div><div class="v '+(s.inc?(s.inc-mg.total>=0?'good':'badc'):'')+'">'+(s.inc?money(s.inc-mg.total):'—')+'</div><div class="s">'+(cfg.fx&&s.inc?usd((s.inc-mg.total)/cfg.fx):'Ingreso − gastado')+'</div></div>'+
+     '<div class="kpi"><div class="l">Ahorro registrado</div><div class="v">'+usd(savOf(k,'ahorro'))+'</div><div class="s">'+(savOf(k,'uso')?'Usaste '+usd(savOf(k,'uso')):'<button class="lnk" data-go="ahorro">Registrar</button>')+'</div></div></div>';
+    h+='<div class="card"><h2>En qué se fue la plata en '+e(mshort(k))+' '+unfinished(k)+'</h2>'+groupRank(mg)+
+     '<p class="note">Tu parte, no el total de la tarjeta. Lo que no tiene categoría se agrupó por palabras de la descripción (super, nafta, farmacia…); el resto queda en «Sin clasificar».</p></div>';
+  }
+  h+=committedCard();
+  h+='<div class="card"><h2>Historial por grupo</h2>'+grpHistory(fut?curMonth():k)+'<p class="note">Solo gastos ya cargados. Tocá una barra para ir a ese mes.</p></div>';
+  if(!fut){
+    h+='<div class="card"><h2>Detalle de '+e(mlabel(k))+'</h2><table class="calc">'+
+     '<tr><td>Alquiler e impuestos'+(s.rentShare<100&&s.rentTotal?'<div class="note">Total '+money(s.rentTotal)+' · tu parte '+s.rentShare+'%</div>':'')+(s.rentRaise?'<span class="chip">aumento '+(s.rentRaise.pct?s.rentRaise.pct+'%':'% a definir')+'</span>':'')+'</td><td class="n">'+money(s.rent)+'</td></tr>'+
+     (s.expT?'<tr><td>Expensas Tierralta'+(shareOf('expTierralta')<100?'<div class="note">Tu parte '+shareOf('expTierralta')+'% de '+money(planAmt(cfg.expTierralta,k))+'</div>':'')+'</td><td class="n">'+money(s.expT)+'</td></tr>':'')+
+     (s.expS?'<tr><td>Servicios del departamento<div class="note">Se pagan con la expensa · tu parte '+shareOf('servDepto')+'%</div></td><td class="n">'+money(s.expS)+'</td></tr>':'')+
+     '<tr class="lk" data-go="tarjetas"><td>Tarjetas<div class="note">Cuotas '+money(s.cardCu)+' · compras del mes '+money(s.cardCorr)+'</div>'+(s.cardPaid&&s.cardPaid-s.card>1?'<div class="note">Pagás '+money(s.cardPaid)+' en total; '+money(s.cardPaid-s.card)+' son de '+e(fname())+'</div>':'')+'</td><td class="n">'+money(s.card)+'</td></tr>'+
+     '<tr class="lk" data-go="vida"><td>Vida diaria (Splitwise)'+(H.ready?'':'<div class="note">Armá el hogar para sumar esto.</div>')+'</td><td class="n">'+money(s.vida)+'</td></tr>'+
+     '<tr class="lk" data-go="mov"><td>Cuenta (otros gastos directos)</td><td class="n">'+money(s.cuenta)+'</td></tr>'+
+     (s.puntual?'<tr><td>Gastos puntuales cargados</td><td class="n">'+money(s.puntual)+'</td></tr>':'')+
+     '<tr class="t"><td>Total de gastos</td><td class="n">'+money(mg.total)+'</td></tr>'+
+     '<tr><td>Ingreso</td><td class="n">'+money(s.inc)+'</td></tr>'+
+     '<tr class="t"><td>Sobra</td><td class="n '+(s.inc-mg.total>=0?'good':'badc')+'">'+money(s.inc-mg.total)+'</td></tr></table>'+
+     (cuentaGen(k)?'<p class="note">Sin clasificar en tu cuenta: <b>'+money(cuentaGen(k))+'</b> (transferencias, compra de dólares, retiros). '+(cfg.sumGeneral?'Se está sumando.':'No se suma: puede ser alquiler, ahorro o gastos que ya están en Splitwise.')+' <label><input type="checkbox" id="sumgen"'+(cfg.sumGeneral?' checked':'')+'> sumarlo igual</label> · <button class="lnk" data-go="mov" data-cat="General">clasificar</button></p>':'')+
+     (k===curMonth()?'<p class="note">Este mes todavía no cerró: lo cargado puede subestimar. Las tarjetas se cuentan por mes de resumen, no por fecha de compra.</p>':'')+
+     (FIJOS.some(function(f){return planAmt(cfg[f.key],k)!=null})?'<p class="note">Alquiler, expensas y servicios salen de los planes fijos: se ignoran los gastos de cuenta y Splitwise con esa categoría (o con las palabras que definiste) para no contarlos dos veces.</p>':'')+'</div>';
+  }
+  h+=pagosCard(k);
   var cd=cuotasDelMes(k);
   if(cd.length)h+='<div class="card"><h2>Cuotas de tarjeta en '+e(mshort(k))+'</h2><table>'+cd.map(function(c){return'<tr><td>'+e(c.name)+'</td><td><span class="chip cu">cuota '+c.n+' de '+c.of+'</span>'+(c.n===c.of?'<span class="note"> última</span>':'<span class="note"> faltan '+(c.of-c.n)+'</span>')+'</td><td class="n">'+money(c.mine)+'</td></tr>'}).join('')+'<tr class="t"><td colspan="2">Total en cuotas</td><td class="n">'+money(cd.reduce(function(a,c){return a+c.mine},0))+'</td></tr></table>'+(cd.some(function(c){return c.n===c.of})?'<p class="note">Lo que termina este mes libera plata el mes siguiente.</p>':'')+'</div>';
   var gen=(months[k]||[]).filter(function(t){return t.cat==='General'&&EXCL_NOSPEND.indexOf(t.cat)<0});
   if(gen.length)h+='<div class="alert"><b>'+gen.length+' movimientos sin clasificar</b> suman '+money(gen.reduce(function(a,t){return a+myAmt(t)},0))+'. <button class="lnk" data-go="mov" data-cat="General">Clasificarlos</button></div>';
-  h+='<div class="card"><h2>Mes a mes</h2>'+stackChart(list)+'<p class="note">Tocá una barra para ir a ese mes.</p>'+
-   '<div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Ingreso</th><th class="n">Alquiler</th><th class="n">Expensas</th><th class="n">Tarjetas</th><th class="n">Vida diaria</th><th class="n">Cuenta</th><th class="n">Sobra</th></tr>'+
-   list.map(function(m){return'<tr class="'+(m.k===k?'cur':'')+'" data-month="'+m.k+'"><td>'+e(mshort(m.k))+(m.isProj?'<span class="chip">est.</span>':'')+((m.rentRaise||m.incRaise)?'<span class="chip up">↑ '+(m.rentRaise?'alquiler':'')+(m.rentRaise&&m.incRaise?' + ':'')+(m.incRaise?'ingreso':'')+'</span>':'')+'</td><td class="n">'+(m.inc?money(m.inc):'—')+'</td><td class="n">'+(m.rent?money(m.rent):'—')+'</td><td class="n">'+(m.exp?money(m.exp):'—')+'</td><td class="n">'+money(m.card)+'</td><td class="n">'+money(m.vida)+'</td><td class="n">'+money(m.cuenta)+'</td><td class="n '+(m.inc?(m.sobra>=0?'good':'badc'):'')+'">'+(m.inc?money(m.sobra):'—')+'</td></tr>'}).join('')+'</table></div>'+
-   '<p class="note">Lo estimado usa las cuotas que ya tenés financiadas más el promedio de los últimos 3 meses para el resto. Si el último mes cargado está incompleto, el promedio queda bajo.</p></div>';
-  h+='<div class="card"><h2>Gastos futuros puntuales</h2><div class="row"><input id="pname" placeholder="Qué es (ej. seguro anual)"><input id="pamt" inputmode="decimal" placeholder="Importe" size="10"><label class="note"><input type="checkbox" id="prec"> se repite todos los meses</label><button id="padd">Agregar a '+e(mshort(k))+'</button></div><div id="plist"></div><p class="note">Solo para lo que no está en tus resúmenes ni en el promedio: anuales, compras grandes, viajes.</p></div>';
+  h+='<div class="card"><h2>Gastos futuros puntuales</h2><div class="row"><input id="pname" placeholder="Qué es (ej. seguro anual)"><input id="pamt" inputmode="decimal" placeholder="Importe" size="10"><label class="note"><input type="checkbox" id="prec"> se repite todos los meses</label><button id="padd">Agregar a '+e(mshort(k))+'</button></div><div id="plist"></div><p class="note">Solo para lo que no está en tus resúmenes: anuales, compras grandes, viajes. Entra en «Lo que ya tenés comprometido».</p></div>';
   v.innerHTML=h;
   bindChart(v);bindPagos(v,k);
+  v.querySelectorAll('tr[data-month]').forEach(function(r){r.addEventListener('click',function(){ui.month=r.dataset.month;render()})});
   var sg=$('#sumgen');if(sg)sg.addEventListener('change',function(){cfg.sumGeneral=this.checked;save('cfg');vMes()});
   $('#padd').addEventListener('click',function(){
     var n=$('#pname').value.trim(),a=parseNum($('#pamt').value);if(!n||a==null){toast('Poné nombre e importe');return}
