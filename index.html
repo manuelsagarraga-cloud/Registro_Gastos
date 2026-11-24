@@ -286,9 +286,9 @@ function importBackup(txt){
 function authBox(h){$('#auth').innerHTML='<div class="authbox card">'+h+'</div>';$('#auth').hidden=false;$('#app').style.display='none'}
 function renderAuth(mode,msg){
   if(mode==='recovery'){
-    authBox('<h2>Elegí una contraseña nueva</h2><label class="f">Contraseña nueva (mínimo 8)<input id="apass" type="password" autocomplete="new-password"></label><div class="row" style="margin-top:10px"><button class="pri" id="anew">Guardar</button></div><p class="note" id="amsg">'+e(msg||'')+'</p>');
+    authBox('<h2>Elegí una contraseña nueva</h2><label class="f">Contraseña nueva (mínimo 6)<input id="apass" type="password" autocomplete="new-password"></label><div class="row" style="margin-top:10px"><button class="pri" id="anew">Guardar</button></div><p class="note" id="amsg">'+e(msg||'')+'</p>');
     $('#anew').addEventListener('click',async function(){
-      var p=$('#apass').value;if(p.length<8){$('#amsg').textContent='Mínimo 8 caracteres.';return}
+      var p=$('#apass').value;if(p.length<6){$('#amsg').textContent='Mínimo 6 caracteres.';return}
       var r=await sb.auth.updateUser({password:p});
       if(r.error){$('#amsg').textContent=r.error.message;return}
       location.hash='';location.reload();
@@ -297,10 +297,10 @@ function renderAuth(mode,msg){
   }
   authBox('<h2>Mis gastos al detalle</h2><p class="note">Cada persona crea su cuenta y ve solo lo suyo. Lo único que se comparte es lo que marques como «Compartido» dentro de un hogar.</p>'+
    '<label class="f">Email<input id="aemail" type="email" autocomplete="username"></label>'+
-   '<label class="f" style="margin-top:8px">Contraseña (mínimo 8)<input id="apass" type="password" autocomplete="current-password"></label>'+
+   '<label class="f" style="margin-top:8px">Contraseña (mínimo 6)<input id="apass" type="password" autocomplete="current-password"></label>'+
    '<div class="row" style="margin-top:12px"><button class="pri" id="alogin">Entrar</button><button id="asignup">Crear cuenta</button><button class="lnk" id="areset">Olvidé mi contraseña</button></div><p class="note" id="amsg">'+e(msg||'')+'</p>');
   var say=function(t){$('#amsg').textContent=t};
-  var cred=function(){var em=$('#aemail').value.trim(),pw=$('#apass').value;if(!em||pw.length<8){say('Poné tu email y una contraseña de al menos 8 caracteres.');return null}return{email:em,password:pw}};
+  var cred=function(){var em=$('#aemail').value.trim(),pw=$('#apass').value;if(!em||pw.length<6){say('Poné tu email y una contraseña de al menos 6 caracteres.');return null}return{email:em,password:pw}};
   $('#alogin').addEventListener('click',async function(){
     var c=cred();if(!c)return;say('Entrando…');
     var r=await sb.auth.signInWithPassword(c);
