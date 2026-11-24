@@ -682,7 +682,7 @@ function vTarjetas(){
     h+=shown.length?'<div class="scroll"><table class="tt"><tr><th>Compra</th><th>Detalle</th><th class="n">Total</th><th>De quién es</th><th class="n">'+e(mn)+'</th><th class="n">'+e(fn)+'</th></tr>'+shown.map(function(x){
       var dd=x.t.od||x.t.d,o=ownOf(x.t),can=x.t.amt>0,oth=x.t.amt-x.mine;tM+=x.mine;tF+=oth;
       var cu=ui.co&&ui.co[x.t.id];
-      var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button><button data-own="custom" class="'+(o==='custom'||cu?'on':'')+'">Otro %</button>'+(o==='custom'||cu?'<input class="ownpc" size="3" inputmode="decimal" placeholder="mi %" value="'+(o==='custom'?x.t.sh:'')+'">':'')+'</div>':'<span class="note">devolución</span>';
+      var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button><button data-own="custom" class="'+(o==='custom'||cu?'on':'')+'">Otro %</button>'+(o==='custom'||cu?'<div class="note" style="margin-top:4px">Solo mío $ <input class="ownsolo" size="7" inputmode="decimal" placeholder="0"> · del resto, mi % <input class="ownpc" size="3" inputmode="decimal" placeholder="50" value="'+(o==='custom'?Math.round(x.t.sh*100)/100:'')+'"> <button class="ownok pri">Aplicar</button></div>':'')+'</div>':'<span class="note">devolución</span>';
       return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+e(x.t.cat)+(x.of?' <span class="chip cu">cuota '+x.n+'/'+x.of+'</span>'+(x.of-x.n?' faltan '+(x.of-x.n):' última'):'')+(o==='custom'?' · '+x.t.sh+'% / '+(100-x.t.sh)+'%':'')+'</div></td><td class="n">'+money(x.t.amt)+'</td><td>'+seg+'</td><td class="n">'+money(x.mine)+'</td><td class="n">'+(o==='none'?'<span class="note">—</span>':money(oth))+'</td></tr>'}).join('')+
       '<tr class="t"><td></td><td>Total</td><td class="n">'+money(tM+tF)+'</td><td></td><td class="n">'+money(tM)+'</td><td class="n">'+money(tF)+'</td></tr></table></div>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
     var flo=tot-mine;
@@ -723,11 +723,13 @@ function vTarjetas(){
     if(ui.co)delete ui.co[id];
     if(setOwner(t,k,b.dataset.own))vTarjetas();
   })});
-  v.querySelectorAll('.ownpc').forEach(function(i){i.addEventListener('change',function(){
-    var id=i.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id}),p=parseNum(i.value);
-    if(!t||p==null||p<0||p>100){toast('El porcentaje va de 0 a 100');return}
+  v.querySelectorAll('.ownok').forEach(function(b){b.addEventListener('click',function(){
+    var box=b.parentNode,id=box.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id});
+    var so=parseNum(box.querySelector('.ownsolo').value)||0,pv=box.querySelector('.ownpc').value.trim(),pc=pv===''?(so>0?50:null):parseNum(pv);
+    if(!t||pc==null||pc<0||pc>100||so<0||so>t.amt){toast('Revisá: el «solo mío» no puede pasar el total y el % va de 0 a 100');return}
+    var mine=so+(t.amt-so)*pc/100,p=Math.round(mine/t.amt*10000)/100;
     if(ui.co)delete ui.co[id];
-    t.sh=p;if(p>=100)hogarRemove('p-'+t.id);else hogarFromTx(t);save(k);vTarjetas();
+    t.sh=p;if(p>=100)hogarRemove('p-'+t.id);else hogarFromTx(t);save(k);toast('Tuyo '+money(mine)+' · '+fname()+' '+money(t.amt-mine));vTarjetas();
   })});
 }
 function ownLabel(t,fn){var o=ownOf(t),mn=H.ready?H.name:'Yo',m=myAmt(t);return o==='none'?'sin marcar (todo tuyo)':e(mn)+' '+money(m)+' · '+e(fn)+' '+money(t.amt-m)}
