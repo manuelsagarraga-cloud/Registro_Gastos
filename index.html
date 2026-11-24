@@ -912,7 +912,7 @@ function hogarExtras(k){
   if(!H.ready)return[];
   var out=[];
   (H.items[k]||[]).forEach(function(it){
-    if(it.type==='pago')return;
+    if(it.type==='pago'||EXCL_NOSPEND.indexOf(it.cat)>-1)return;
     if(it.payer===H.uid){if(!it.ref)out.push({cat:it.cat||'General',amt:it.amt*it.share/100})}
     else out.push({cat:it.cat||'General',amt:it.amt*(100-it.share)/100});
   });
@@ -936,6 +936,22 @@ function balHtml(n,on){
   if(n>0.5)return'<span class="big good">'+e(on)+' te debe '+money(n)+'</span><div class="note">Para igualarse, '+e(on)+' tiene que transferirte '+money(n)+'.</div>';
   if(n<-0.5)return'<span class="big badc">Le debés '+money(-n)+' a '+e(on)+'</span><div class="note">Para igualarse tenés que transferirle '+money(-n)+' a '+e(on)+'.</div>';
   return'<span class="big">Están a mano</span>';
+}
+async function hogarImport(file){
+  var d=JSON.parse(await file.text());
+  if(!d||d.kind!=='hogar-historial'||!Array.isArray(d.items))throw new Error('Ese archivo no es un historial de hogar');
+  var n=0,ks={};
+  d.items.forEach(function(x){
+    if(!x.id||!/^\d{4}-\d{2}-\d{2}$/.test(x.d||'')||typeof x.amt!=='number')return;
+    var it={id:String(x.id),d:x.d,desc:String(x.desc||''),amt:x.amt,share:x.share==null?50:x.share,type:x.type==='pago'?'pago':'gasto',payer:H.uid};
+    if(x.cat)it.cat=x.cat;if(x.note)it.note=x.note;if(x.ref)it.ref=x.ref;
+    var k=it.d.slice(0,7),arr=H.items[k]||(H.items[k]=[]);
+    var i=arr.findIndex(function(y){return y.id===it.id&&y.payer===H.uid});
+    if(i>-1)arr[i]=it;else arr.push(it);
+    ks[k]=1;n++;
+  });
+  Object.keys(ks).forEach(function(k){H.items[k].sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});hogarSave(k)});
+  return n;
 }
 function vHogar(){
   var v=$('#view');
@@ -986,7 +1002,12 @@ function vHogar(){
   }).join('')+'</table>';
   h+='<p class="note">Cada uno puede editar o borrar solo lo que pagó él.</p></div>';
   h+='<div class="card"><h2>Agregar un gasto compartido que pagaste vos</h2><div class="row"><input id="hdt" type="date" value="'+ui.month+'-01"><input id="hds" placeholder="Descripción"><input id="hmt" inputmode="decimal" placeholder="Total pagado" size="10"><select id="hct">'+cfg.cats.filter(function(c){return EXCL_NOSPEND.indexOf(c)<0}).map(function(c){return'<option>'+e(c)+'</option>'}).join('')+'</select><label class="note">mi parte <input id="hpc" size="3" value="50">%</label><button id="hadd" class="pri">Agregar</button></div><p class="note">Con 50% se reparte a mitades. Con 0% el gasto fue todo del otro (por ejemplo, le pagaste algo a '+e(on)+').</p></div>';
+  h+='<div class="card"><h2>Importar historial</h2><p class="note">Cargá un archivo de historial (.json) con lo que pagaste vos. Se puede repetir sin duplicar. Cada uno importa el suyo.</p><div class="row"><input type="file" id="himp" accept=".json"></div></div>';
   v.innerHTML=h;
+  $('#himp').addEventListener('change',function(){
+    var f=this.files[0];if(!f)return;
+    hogarImport(f).then(function(n){toast(n+' movimientos importados. Guardando…');vHogar()}).catch(function(err){toast(err&&err.message?err.message:'No pude leer el archivo')});
+  });
   $('#hrefresh').addEventListener('click',function(){hogarLoad().then(function(){toast('Actualizado');vHogar()}).catch(function(){toast('No pude actualizar')})});
   $('#gadd').addEventListener('click',function(){
     var a=parseNum($('#gamt').value),d=$('#gdate').value;if(!a||a<=0||!d||!o){toast('Poné un importe y una fecha');return}
