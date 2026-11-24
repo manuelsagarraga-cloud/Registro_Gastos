@@ -542,7 +542,7 @@ function vImp(){
   v.innerHTML='<div class="card"><h2>1. ¿Qué vas a cargar?</h2><div class="row">'+
    '<label><input type="radio" name="isrc" value="tarjeta"'+(I.src==='tarjeta'?' checked':'')+'> Resumen de tarjeta</label>'+
    '<label><input type="radio" name="isrc" value="cuenta"'+(I.src==='cuenta'?' checked':'')+'> Movimientos de cuenta / transferencias</label></div>'+
-   '<div class="drop" id="drop">Arrastrá acá el archivo (CSV, Excel o PDF) o <button class="lnk" id="pick">elegilo</button><input id="file" type="file" accept=".csv,.xlsx,.xls,.pdf,.txt" hidden><div class="note" id="fname">'+e(I.name)+'</div></div>'+
+   '<div class="drop" id="drop">Arrastrá acá el archivo (CSV, Excel, PDF o un respaldo .json) o <button class="lnk" id="pick">elegilo</button><input id="file" type="file" accept=".csv,.xlsx,.xls,.pdf,.txt,.json" hidden><div class="note" id="fname">'+e(I.name)+'</div></div>'+
    '<h3>…o pegá el texto copiado del home banking / PDF</h3><textarea id="itext" placeholder="Pegá acá las líneas de movimientos">'+e(I.text)+'</textarea>'+
    '<div class="row"><label class="note">Año para fechas sin año: <input id="iyear" size="5" value="'+I.year+'"></label><button id="useText">Leer texto pegado</button></div></div>'+
    '<div id="impArea"></div>';
@@ -561,6 +561,15 @@ async function handleFile(f){
   var I=ui.imp,ext=(f.name.split('.').pop()||'').toLowerCase();
   I.name=f.name;I.rows=null;I.text='';I.map=null;I.cierre=undefined;$('#fname').textContent='Leyendo '+f.name+'…';
   try{
+    if(ext==='json'){
+      var jt=await f.text(),jd=JSON.parse(jt);
+      if(jd&&jd.cfg&&jd.months){var nb=importBackup(jt);I.name='';toast('Respaldo cargado: '+nb+' movimientos nuevos');ui.tab='mov';ui.f={q:'',src:'',cat:''};render();return}
+      if(jd&&jd.kind==='hogar-historial'){
+        if(!H.ready)throw new Error('Primero creá o uní el hogar en la pestaña Hogar');
+        var nh=await hogarImport(f);I.name='';toast(nh+' movimientos cargados en el hogar');ui.tab='hogar';render();return;
+      }
+      throw new Error('Ese .json no es un respaldo ni un historial de hogar');
+    }
     if(ext==='csv'||ext==='txt'){
       var buf=await f.arrayBuffer();var t=new TextDecoder('utf-8').decode(buf);
       if(t.indexOf(String.fromCharCode(65533))>-1)t=new TextDecoder('windows-1252').decode(buf);
