@@ -830,7 +830,14 @@ function vPlan(){
 }
 
 /* ---------- AHORRO ---------- */
-function savOf(k,tipo){return (cfg.ahorro||[]).filter(function(a){return a.m===k&&a.tipo===tipo}).reduce(function(s,a){return s+a.usd},0)}
+function entCur(a){return a.cur||'USD'}
+function entAmt(a){return a.amt!=null?a.amt:a.usd}
+function entEq(a){return entCur(a)==='ARS'?((cfg.fx||0)?entAmt(a)/cfg.fx:0):entAmt(a)}
+function entSum(fn,eq,cur){return (cfg.ahorro||[]).filter(fn).filter(function(a){return !cur||entCur(a)===cur}).reduce(function(s,a){return s+(eq?entEq(a):entAmt(a))},0)}
+function savOf(k,tipo){return entSum(function(a){return a.m===k&&a.tipo===tipo&&!a.init},true)}
+function savRaw(k,tipo,cur){return entSum(function(a){return a.m===k&&a.tipo===tipo&&!a.init},false,cur)}
+function balRaw(cur,uptoYear){return entSum(function(a){return a.tipo==='ahorro'&&(uptoYear==null||a.m.slice(0,4)<uptoYear)},false,cur)-entSum(function(a){return a.tipo==='uso'&&(uptoYear==null||a.m.slice(0,4)<uptoYear)},false,cur)}
+function mixTxt(u,a){var o=[];if(u)o.push(usd(u));if(a)o.push(money(a));return o.length?o.join('<br>'):'—'}
 function goalOf(y){
   y=String(y);
   if(cfg.goals&&cfg.goals[y]&&cfg.goals[y].usd!=null)return cfg.goals[y].usd;
@@ -844,39 +851,42 @@ function planOf(y,m){
   return u?Math.max(0,g-ex)/u:0;
 }
 function G(y){y=String(y);if(!cfg.goals)cfg.goals={};if(!cfg.goals[y])cfg.goals[y]={usd:goalOf(y),plan:{}};if(!cfg.goals[y].plan)cfg.goals[y].plan={};return cfg.goals[y]}
-function yearSaved(y,tipo){return (cfg.ahorro||[]).filter(function(a){return a.tipo===tipo&&a.m.slice(0,4)===String(y)}).reduce(function(s,a){return s+a.usd},0)}
+function yearSaved(y,tipo){return entSum(function(a){return a.tipo===tipo&&!a.init&&a.m.slice(0,4)===String(y)},true)}
+function yearRawARS(y,tipo){return entSum(function(a){return a.tipo===tipo&&!a.init&&a.m.slice(0,4)===String(y)},false,'ARS')}
 function vAhorro(){
   var v=$('#view'),yr=ui.ay||ui.month.slice(0,4),fx=cfg.fx||0,A=cfg.ahorro||[],goal=goalOf(yr);
   var yS=yearSaved(yr,'ahorro'),yU=yearSaved(yr,'uso'),
-      allS=A.filter(function(a){return a.tipo==='ahorro'}).reduce(function(s,a){return s+a.usd},0),
-      allU=A.filter(function(a){return a.tipo==='uso'}).reduce(function(s,a){return s+a.usd},0);
+      avU=balRaw('USD'),avA=balRaw('ARS'),avEq=avU+(fx?avA/fx:0);
   var h='<div class="row yearnav"><button id="yprev">‹</button><strong style="font-size:20px">'+yr+'</strong><button id="ynext">›</button><span class="note">Objetivo y registro por año</span></div>';
   h+='<div class="kpis">'+
    '<div class="kpi"><div class="l">Objetivo '+yr+'</div><div class="v"><input data-goal="1" inputmode="decimal" class="bigin" value="'+(goal||'')+'" placeholder="USD"></div><div class="s">'+(goal?usd(goal/12)+' por mes en promedio':'Poné cuánto querés ahorrar este año')+'</div></div>'+
-   '<div class="kpi"><div class="l">Ahorrado en '+yr+'</div><div class="v">'+usd(yS)+'</div><div class="s">'+(goal?pct(yS,goal)+' del objetivo · faltan '+usd(Math.max(0,goal-yS)):'—')+'</div></div>'+
+   '<div class="kpi"><div class="l">Ahorrado en '+yr+'</div><div class="v">'+usd(yS)+'</div><div class="s">'+(goal?pct(yS,goal)+' del objetivo · faltan '+usd(Math.max(0,goal-yS)):'—')+(yearRawARS(yr,'ahorro')?'<div>incluye '+money(yearRawARS(yr,'ahorro'))+' en pesos'+(fx?'':' (poné el dólar para convertir)')+'</div>':'')+'</div></div>'+
    '<div class="kpi"><div class="l">Gastado del ahorro en '+yr+'</div><div class="v">'+usd(yU)+'</div><div class="s">Neto del año: '+usd(yS-yU)+'</div></div>'+
-   '<div class="kpi"><div class="l">Ahorro disponible hoy</div><div class="v '+(allS-allU>=0?'good':'badc')+'">'+usd(allS-allU)+'</div><div class="s">Todos los años'+(fx?' · '+money((allS-allU)*fx):'')+'</div></div></div>';
+   '<div class="kpi"><div class="l">Ahorro disponible hoy</div><div class="v '+(avEq>=0?'good':'badc')+'">'+(fx?money(avU*fx+avA):usd(avU))+'</div><div class="s">'+(fx?usd(avU)+' + '+money(avA)+' ≈ '+usd(avEq):(avA?'+ '+money(avA)+' en pesos · poné el dólar para sumarlos':'Todos los años'))+'</div></div></div>';
   if(goal)h+='<div class="card"><div class="prog"><i style="width:'+Math.min(100,yS/goal*100)+'%"></i></div></div>';
   /* plan mes a mes */
-  var bal=0,pbal=0,rows=[],planSum=0;
+  var balU=balRaw('USD',yr),balA=balRaw('ARS',yr),pbal=0,rows=[],planSum=0;
   for(var i=1;i<=12;i++){
     var m=yr+'-'+String(i).padStart(2,'0'),s=savOf(m,'ahorro'),u=savOf(m,'uso'),pl=planOf(yr,m),ex=planExp(yr,m);
-    bal+=s-u;pbal+=pl;planSum+=pl;
+    var ini=entSum(function(a){return a.m===m&&a.init&&a.tipo==='ahorro'},false,'ARS'),iniU=entSum(function(a){return a.m===m&&a.init&&a.tipo==='ahorro'},false,'USD');
+    balU+=entSum(function(a){return a.m===m&&a.tipo==='ahorro'},false,'USD')-entSum(function(a){return a.m===m&&a.tipo==='uso'},false,'USD');
+    balA+=entSum(function(a){return a.m===m&&a.tipo==='ahorro'},false,'ARS')-entSum(function(a){return a.m===m&&a.tipo==='uso'},false,'ARS');
+    pbal+=pl;planSum+=pl;
     var det=(months[m]||[]).filter(function(t){return t.cat==='Ahorro'}).reduce(function(a,t){return a+t.amt},0);
-    rows.push({m:m,s:s,u:u,pl:pl,ex:ex,b:bal,pb:pbal,det:det,sum:monthSummary(m)});
+    rows.push({m:m,s:s,u:u,pl:pl,ex:ex,bU:balU,bA:balA,pb:pbal,det:det,sum:monthSummary(m),sU:savRaw(m,'ahorro','USD'),sA:savRaw(m,'ahorro','ARS'),uU:savRaw(m,'uso','USD'),uA:savRaw(m,'uso','ARS'),ini:ini,iniU:iniU});
   }
   h+='<div class="card"><h2>Cuánto ahorrar mes a mes — '+yr+'</h2><div class="row"><button id="peven">Repartir parejo</button><button id="pfix">Recalcular lo que falta</button><span class="note">Plan: '+usd(planSum)+(goal?' de '+usd(goal)+(Math.abs(planSum-goal)>1?' <b class="badc">no coincide con el objetivo</b>':' ✓'):'')+'</span></div>'+
    '<div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Debería ahorrar</th><th class="n">Ahorré</th><th class="n">Gasté del ahorro</th><th class="n">Diferencia</th><th class="n">Acumulado</th><th class="n">Según plan</th></tr>'+rows.map(function(r){
     var past=r.m<=curMonth(),df=r.s-r.pl;
     return'<tr class="'+(r.m===ui.month?'cur':'')+'"><td>'+e(mshort(r.m))+(r.det?'<div class="note">en cuenta: '+money(r.det)+' a ahorro</div>':'')+(r.sum.inc?'<div class="note">podría: '+(fx?usd(r.sum.sobra/fx):money(r.sum.sobra))+(r.sum.isProj?' (est.)':'')+'</div>':'')+'</td>'+
      '<td class="n"><input class="pin" data-m="'+r.m+'" inputmode="decimal" size="6" value="'+(r.ex!=null?r.ex:'')+'" placeholder="'+(Math.round(r.pl*100)/100)+'"></td>'+
-     '<td class="n">'+(r.s?usd(r.s):'—')+'</td><td class="n">'+(r.u?usd(r.u):'—')+'</td>'+
+     '<td class="n">'+mixTxt(r.sU,r.sA)+(r.ini||r.iniU?'<div class="note">+ saldo inicial '+mixTxt(r.iniU,r.ini).replace('<br>',' · ')+'</div>':'')+'</td><td class="n">'+mixTxt(r.uU,r.uA)+'</td>'+
      '<td class="n '+(past&&r.pl?(df>=0?'good':'badc'):'note')+'">'+(past&&r.pl?(df>=0?'+':'')+usd(df):'—')+'</td>'+
-     '<td class="n"><b>'+usd(r.b)+'</b></td><td class="n note">'+usd(r.pb)+'</td></tr>'}).join('')+'</table></div><p class="note">Dejá el casillero vacío para usar el reparto parejo. Poné un valor para marcar meses de más (aguinaldo, un ingreso extra) o de menos. «Acumulado» es lo ahorrado menos lo gastado del ahorro, arrancando de cero cada año.</p></div>';
-  h+='<div class="card"><h2>Anotar</h2><div class="grid2"><div><h3 style="margin-top:0">Ahorré</h3><div class="row"><input type="month" id="sm" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="su" inputmode="decimal" placeholder="USD" size="8"><input id="sn" placeholder="Nota (ej. compra de dólares)"><button class="pri" id="sadd">Registrar</button></div></div>'+
-   '<div><h3 style="margin-top:0">Gasté del ahorro</h3><div class="row"><input type="month" id="um" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="uu" inputmode="decimal" placeholder="USD" size="8"><input id="un" placeholder="En qué (ej. cerco)"><button id="uadd">Registrar</button></div></div></div></div>';
+     '<td class="n"><b>'+(r.bU||r.bA?mixTxt(r.bU,r.bA):usd(0))+'</b>'+(fx&&r.bA?'<div class="note">≈ '+usd(r.bU+r.bA/fx)+'</div>':'')+'</td><td class="n note">'+usd(r.pb)+'</td></tr>'}).join('')+'</table></div><p class="note">Dejá el casillero vacío para usar el reparto parejo. Poné un valor para marcar meses de más (aguinaldo, un ingreso extra) o de menos. «Acumulado» es todo lo ahorrado menos lo gastado, incluyendo años anteriores y el saldo inicial. Lo ahorrado en pesos se convierte al dólar de referencia para compararlo con el plan (en USD).</p></div>';
+  h+='<div class="card"><h2>Anotar</h2><div class="grid2"><div><h3 style="margin-top:0">Ahorré</h3><div class="row"><input type="month" id="sm" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="su" inputmode="decimal" placeholder="Importe" size="10"><select id="sc"><option>USD</option><option value="ARS">Pesos</option></select><input id="sn" placeholder="Nota (ej. compra de dólares)"><button class="pri" id="sadd">Registrar</button></div><label class="note"><input type="checkbox" id="sinit"> Ya lo tenía guardado (saldo inicial: suma al disponible, no al objetivo del año)</label></div>'+
+   '<div><h3 style="margin-top:0">Gasté del ahorro</h3><div class="row"><input type="month" id="um" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="uu" inputmode="decimal" placeholder="Importe" size="10"><select id="uc"><option>USD</option><option value="ARS">Pesos</option></select><input id="un" placeholder="En qué (ej. cerco)"><button id="uadd">Registrar</button></div></div></div></div>';
   var list=A.filter(function(a){return a.m.slice(0,4)===yr}).sort(function(a,b){return a.m<b.m?1:a.m>b.m?-1:0});
-  h+='<div class="card"><h2>Registro de '+yr+'</h2>'+(list.length?'<table>'+list.map(function(a){return'<tr><td>'+e(mshort(a.m))+'</td><td>'+(a.tipo==='ahorro'?'<span class="chip ok">ahorré</span>':'<span class="chip bad">gasté</span>')+' '+e(a.note||'')+'</td><td class="n">'+usd(a.usd)+'</td><td><button class="x sdel" data-id="'+e(a.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no anotaste nada este año.</p>')+'</div>';
+  h+='<div class="card"><h2>Registro de '+yr+'</h2>'+(list.length?'<table>'+list.map(function(a){return'<tr><td>'+e(mshort(a.m))+'</td><td>'+(a.tipo==='ahorro'?'<span class="chip ok">ahorré</span>':'<span class="chip bad">gasté</span>')+(a.init?'<span class="chip">saldo inicial</span>':'')+' '+e(a.note||'')+'</td><td class="n">'+(entCur(a)==='ARS'?money(entAmt(a)):usd(entAmt(a)))+'</td><td><button class="x sdel" data-id="'+e(a.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no anotaste nada este año.</p>')+'</div>';
   /* resumen por año */
   var ys={};ys[String(now.getFullYear())]=1;ys[String(now.getFullYear()+1)]=1;ys[yr]=1;
   A.forEach(function(a){ys[a.m.slice(0,4)]=1});Object.keys(cfg.goals||{}).forEach(function(y){ys[y]=1});
@@ -914,14 +924,17 @@ function vAhorro(){
     for(var i2=1;i2<=12;i2++){var m2=yr+'-'+String(i2).padStart(2,'0');if(m2<start)g.plan[m2]=savOf(m2,'ahorro')}
     left.forEach(function(m){g.plan[m]=each});save('cfg');toast('Cada mes que queda: '+usd(each));vAhorro();
   });
-  function add(tipo,mid,uid_,nid){
-    var m=$(mid).value,a=parseNum($(uid_).value);
-    if(!m||!a||a<=0){toast('Poné mes e importe en USD');return}
+  function add(tipo,mid,uid_,nid,cid){
+    var m=$(mid).value,a=parseNum($(uid_).value),cur=$(cid).value==='ARS'?'ARS':'USD';
+    if(!m||!a||a<=0){toast('Poné mes e importe');return}
+    if(cur==='ARS'&&!cfg.fx)toast('Guardado. Poné el dólar de referencia abajo para ver el equivalente en USD');
     if(!cfg.ahorro)cfg.ahorro=[];
-    cfg.ahorro.push({id:uid(),m:m,tipo:tipo,usd:a,note:$(nid).value.trim()});save('cfg');ui.ay=m.slice(0,4);vAhorro();
+    var en={id:uid(),m:m,tipo:tipo,cur:cur,amt:a,note:$(nid).value.trim()};
+    if(tipo==='ahorro'&&$('#sinit')&&$('#sinit').checked)en.init=true;
+    cfg.ahorro.push(en);save('cfg');ui.ay=m.slice(0,4);vAhorro();
   }
-  $('#sadd').addEventListener('click',function(){add('ahorro','#sm','#su','#sn')});
-  $('#uadd').addEventListener('click',function(){add('uso','#um','#uu','#un')});
+  $('#sadd').addEventListener('click',function(){add('ahorro','#sm','#su','#sn','#sc')});
+  $('#uadd').addEventListener('click',function(){add('uso','#um','#uu','#un','#uc')});
   v.querySelectorAll('.sdel').forEach(function(b){b.addEventListener('click',function(){cfg.ahorro=cfg.ahorro.filter(function(a){return a.id!==b.dataset.id});save('cfg');vAhorro()})});
 }
 
