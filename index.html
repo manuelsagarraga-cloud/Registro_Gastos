@@ -822,33 +822,33 @@ function bindPlan(v,key){
   var box=v.querySelector('#pc-'+key);
   box.querySelector('details').addEventListener('toggle',function(){if(!ui.po)ui.po={};ui.po[key]=this.open});
   function P(){var fj=FIJOS.find(function(x){return x.key===key});if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[],share:fj?50:undefined,kw:fj?fj.kw:undefined};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
-  box.querySelector('[data-f=amt]').addEventListener('change',function(){var p=P();p.amt=parseNum(this.value)||0;if(!p.from)p.from=curMonth();save('cfg');vPlan()});
-  var shi=box.querySelector('[data-f=share]');if(shi)shi.addEventListener('change',function(){var p=P(),x=parseNum(this.value);if(x==null||x<0||x>100){toast('El porcentaje va de 0 a 100');return}p.share=x;save('cfg');vPlan()});
-  var kwi=box.querySelector('[data-f=kw]');if(kwi)kwi.addEventListener('change',function(){var p=P();p.kw=this.value.trim();save('cfg');vPlan()});
+  box.querySelector('[data-f=amt]').addEventListener('change',function(){var p=P();p.amt=parseNum(this.value)||0;if(!p.from)p.from=curMonth();savePlan(key);vPlan()});
+  var shi=box.querySelector('[data-f=share]');if(shi)shi.addEventListener('change',function(){var p=P(),x=parseNum(this.value);if(x==null||x<0||x>100){toast('El porcentaje va de 0 a 100');return}p.share=x;savePlan(key);vPlan()});
+  var kwi=box.querySelector('[data-f=kw]');if(kwi)kwi.addEventListener('change',function(){var p=P();p.kw=this.value.trim();savePlan(key);vPlan()});
   box.querySelectorAll('.ovr').forEach(function(i){i.addEventListener('change',function(){
     var p=P();if(!p.over)p.over={};var x=parseNum(this.value);
-    if(this.value.trim()===''||x==null)delete p.over[this.dataset.m];else p.over[this.dataset.m]=x;save('cfg');vPlan();
+    if(this.value.trim()===''||x==null)delete p.over[this.dataset.m];else p.over[this.dataset.m]=x;savePlan(key);vPlan();
   })});
-  box.querySelector('[data-f=from]').addEventListener('change',function(){var p=P();if(this.value)p.from=this.value;save('cfg');vPlan()});
+  box.querySelector('[data-f=from]').addEventListener('change',function(){var p=P();if(this.value)p.from=this.value;savePlan(key);vPlan()});
   box.querySelector('[data-n=add]').addEventListener('click',function(){
     var m=box.querySelector('[data-n=m]').value,pc=parseNum(box.querySelector('[data-n=pct]').value);
     if(!m){toast('Elegí el mes del aumento');return}
     if(pc!=null&&(pc<-50||pc>500)){toast('Revisá el porcentaje');return}
     var p=P();if(!p.from){toast('Cargá primero el monto y desde cuándo rige');return}
-    p.raises=p.raises.filter(function(r){return r.m!==m});p.raises.push({m:m,pct:pc||0});save('cfg');vPlan();
+    p.raises=p.raises.filter(function(r){return r.m!==m});p.raises.push({m:m,pct:pc||0});savePlan(key);vPlan();
   });
   box.querySelector('[data-g=go]').addEventListener('click',function(){
     var pc=parseNum(box.querySelector('[data-g=pct]').value),ev=parseInt(box.querySelector('[data-g=every]').value,10),f=box.querySelector('[data-g=from]').value;
     if(pc==null||!ev||ev<1||!f){toast('Poné %, cada cuántos meses y desde qué mes');return}
     var p=P();if(!p.from){toast('Cargá primero el monto y desde cuándo rige');return}
     for(var i=0;i*ev<24;i++){var m=shiftMonth(f,i*ev);p.raises=p.raises.filter(function(r){return r.m!==m});p.raises.push({m:m,pct:pc})}
-    save('cfg');vPlan();
+    savePlan(key);vPlan();
   });
-  box.querySelectorAll('.rdel').forEach(function(b){b.addEventListener('click',function(){var p=P();p.raises=p.raises.filter(function(r){return r.m!==b.dataset.m});save('cfg');vPlan()})});
+  box.querySelectorAll('.rdel').forEach(function(b){b.addEventListener('click',function(){var p=P();p.raises=p.raises.filter(function(r){return r.m!==b.dataset.m});savePlan(key);vPlan()})});
 }
 function vPlan(){
   var v=$('#view');
-  v.innerHTML='<p class="note">Cada tarjeta se abre en «Aumentos y proyección». Si no sabés el %, marcá el mes igual y dejalo vacío: queda «% a definir» y no cambia el monto.</p><div class="plans">'+
+  v.innerHTML=(H.ready?(H.planOK?'<p class="note" style="background:#e8f3ee;padding:8px;border-radius:8px">Alquiler, expensas y servicios son <b>compartidos con '+e(fname())+'</b>: el monto, desde cuándo rige y los aumentos se cargan una sola vez y los ven los dos. «Tu parte (%)» y las palabras a ignorar son de cada uno.</p>':'<p class="alert">Falta crear la tabla del plan compartido en Supabase (plan_compartido.sql). Mientras tanto, cada uno ve su propio plan.</p>'):'')+'<p class="note">Cada tarjeta se abre en «Aumentos y proyección». Si no sabés el %, marcá el mes igual y dejalo vacío: queda «% a definir» y no cambia el monto.</p><div class="plans">'+
    planCard('rentPlan','Alquiler e impuestos','Total de los dos, 50 y 50 con Flor',{share:1,kw:0})+
    planCard('expTierralta','Expensas Tierralta','Expensas del lote',{share:1,kw:1})+
    planCard('servDepto','Servicios del departamento','Se pagan junto con la expensa',{share:1,kw:1})+
@@ -1368,7 +1368,8 @@ function rlist(){
 
 /* ---------- Hogar (gastos en pareja) ---------- */
 function myName(){return cfg.myName||'Manuel'}
-var H={ready:false,hid:null,uid:null,name:'',code:'',members:{},items:{},synced:{},t:0};
+var H={ready:false,hid:null,uid:null,name:'',code:'',members:{},items:{},synced:{},t:0,plan:{},planOK:false};
+var SHARED=['rentPlan','expTierralta','servDepto'];
 function hogarOther(){var ids=Object.keys(H.members).filter(function(u){return u!==H.uid});return ids.length?ids[0]:null}
 function nameOf(u){return u===H.uid?myName():(H.members[u]||'La otra persona')}
 function itemRow(it){return{hogar_id:H.hid,payer:it.payer||H.uid,id:it.id,fecha:it.d,descripcion:it.desc,importe:it.amt,categoria:it.cat||null,nota:it.note||null,share:it.share==null?50:it.share,tipo:it.type||'gasto',ref:it.ref||null}}
@@ -1390,7 +1391,40 @@ async function hogarLoad(){
     if(r.data.length<1000)break;
   }
   H.items=items;H.synced=synced;H.ready=true;H.t=Date.now();
+  var pl=await sb.from('hogar_plan').select('data').eq('hogar_id',H.hid).maybeSingle();
+  if(pl.error){H.planOK=false;H.plan={}}else{H.planOK=true;H.plan=(pl.data&&pl.data.data)||{};planSync()}
 }
+/* Plan compartido: monto, vigencia y aumentos de alquiler/expensas/servicios son del hogar (los ven y editan los dos).
+   Tu parte (%) y las palabras a ignorar siguen siendo de cada uno. */
+function planCore(p){var o={amt:p.amt||0,from:p.from||'',raises:p.raises||[]};if(p.over&&Object.keys(p.over).length)o.over=p.over;return o}
+function planSync(){
+  var dirty=false,push=false;
+  SHARED.forEach(function(key){
+    var sp=H.plan[key],lp=cfg[key],fj=FIJOS.find(function(x){return x.key===key});
+    if(sp&&sp.amt){
+      if(!lp)lp=cfg[key]={share:key==='rentPlan'?undefined:50,kw:fj?fj.kw:undefined};
+      var a=JSON.stringify(planCore(lp)),b=JSON.stringify(planCore(sp));
+      if(a!==b){lp.amt=sp.amt;lp.from=sp.from;lp.raises=sp.raises||[];if(sp.over)lp.over=sp.over;else delete lp.over;dirty=true}
+    }else if(lp&&lp.amt>0){H.plan[key]=planCore(lp);push=true}
+  });
+  if(dirty)save('cfg');
+  if(push)planPush();
+}
+function planPush(key){
+  if(!H.ready||!H.planOK)return;
+  if(key&&cfg[key])H.plan[key]=planCore(cfg[key]);
+  q=q.then(async function(){
+    var cur=await sb.from('hogar_plan').select('data').eq('hogar_id',H.hid).maybeSingle();
+    var base=(cur.data&&cur.data.data)||{},mine={};
+    SHARED.forEach(function(k){if(H.plan[k])mine[k]=H.plan[k]});
+    var upd={};if(key){upd[key]=mine[key]}else{upd=mine}
+    var data=Object.assign({},base,upd);
+    var r=await sb.from('hogar_plan').upsert({hogar_id:H.hid,data:data,updated_at:new Date().toISOString(),updated_by:S.uid},{onConflict:'hogar_id'});
+    if(r.error){toast('No pude compartir el plan: '+r.error.message);return}
+    H.plan=data;
+  }).catch(function(){});
+}
+function savePlan(key){save('cfg');if(SHARED.indexOf(key)>=0)planPush(key)}
 var hs={};
 function hogarSave(k){
   clearTimeout(hs[k]);
