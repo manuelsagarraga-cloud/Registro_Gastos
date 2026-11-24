@@ -97,7 +97,7 @@ input.bigin{font-size:22px;font-weight:650;width:100%;border:0;border-bottom:1px
 .plan .grid2{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.plan label.f input{font-size:14px;padding:4px 6px}
 details.pdet summary{cursor:pointer;color:var(--acc);font-size:14px;margin-top:8px}
 .seg3 input{margin-left:4px;width:52px;padding:3px 5px}.seg3 button{padding:3px 7px;font-size:12px}
-table.tt td,table.tt th{padding:6px 5px}table.tt td:nth-child(4){white-space:nowrap}
+table.tt{table-layout:fixed}table.tt td,table.tt th{padding:6px 5px;vertical-align:top}table.tt td.n{white-space:nowrap;font-size:13px}table.tt .seg3{flex-wrap:wrap;margin-top:4px}table.tt .seg3 button{padding:2px 6px;font-size:11px}
 tr.unm td{background:var(--warnbg)}
 </style>
 </head>
@@ -687,17 +687,19 @@ function vTarjetas(){
     var f=ui.cf||'all';
     var shown=items.filter(function(x){return f==='all'||ownOf(x.t)===f||(f==='half'&&ownOf(x.t)==='custom')}).sort(function(a,b){return b.t.amt-a.t.amt});
     h+='<div class="card"><div class="row"><h2 style="margin:0;flex:1">Resumen de '+e(mlabel(k))+unfinished(k)+'</h2><select id="cf"><option value="all">Todos</option><option value="none">Sin marcar</option><option value="me">Míos</option><option value="flor">De '+e(fn)+'</option><option value="half">Compartidos</option></select>'+(unm.length?'<button id="allme">Los '+unm.length+' sin marcar son míos</button>':'')+'</div>';
-    var mn=H.ready?H.name:'Yo',tM=0,tF=0;
-    h+=shown.length?'<div class="scroll"><table class="tt"><tr><th>Compra</th><th>Detalle</th><th class="n">Total</th><th>De quién es</th><th class="n">'+e(mn)+'</th><th class="n">'+e(fn)+'</th></tr>'+shown.map(function(x){
+    var mn=myName(),tM=0,tF=0,so=0,sf=0,cT=0,cMs=0,cFs=0;
+    h+=shown.length?'<table class="tt"><colgroup><col style="width:48px"><col><col style="width:92px"><col style="width:92px"><col style="width:108px"></colgroup><tr><th>Compra</th><th>Detalle</th><th class="n">'+e(mn)+'</th><th class="n">'+e(fn)+'</th><th class="n">Compartido</th></tr>'+shown.map(function(x){
       var dd=x.t.od||x.t.d,o=ownOf(x.t),can=x.t.amt>0,oth=x.t.amt-x.mine;tM+=x.mine;tF+=oth;
-      var cu=ui.co&&ui.co[x.t.id];
-      var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button><button data-own="custom" class="'+(o==='custom'||cu?'on':'')+'">Otro %</button>'+(o==='custom'||cu?'<div class="note" style="margin-top:4px">Solo mío $ <input class="ownsolo" size="7" inputmode="decimal" placeholder="0"> · del resto, mi % <input class="ownpc" size="3" inputmode="decimal" placeholder="50" value="'+(o==='custom'?Math.round(x.t.sh*100)/100:'')+'"> <button class="ownok pri">Aplicar</button></div>':'')+'</div>':'<span class="note">devolución</span>';
-      return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+e(x.t.cat)+(x.of?' <span class="chip cu">cuota '+x.n+'/'+x.of+'</span>'+(x.of-x.n?' faltan '+(x.of-x.n):' última'):'')+(o==='custom'?' · '+x.t.sh+'% / '+(100-x.t.sh)+'%':'')+'</div>'+(x.of||x.t.amt<=0?'':'<label class="note"><input type="checkbox" class="rec-on" data-key="'+e(x.key)+'" data-name="'+e(x.t.desc.replace(CU_RE,'').trim())+'"'+(x.rec?' checked':'')+'> se repite todos los meses</label>')+'</td><td class="n">'+money(x.t.amt)+'</td><td>'+seg+'</td><td class="n">'+money(x.mine)+'</td><td class="n">'+(o==='none'?'<span class="note">—</span>':money(oth))+'</td></tr>'}).join('')+
-      '<tr class="t"><td></td><td>Total</td><td class="n">'+money(tM+tF)+'</td><td></td><td class="n">'+money(tM)+'</td><td class="n">'+money(tF)+'</td></tr>'+
-        (function(){var so=0,sf=0,cT=0,cM=0,cF=0;shown.forEach(function(x){var s=x.t.sh;if(!(x.t.amt>0))return;if(s==null||s>=100)so+=x.t.amt;else if(s===0)sf+=x.t.amt;else{cT+=x.t.amt;cM+=x.mine;cF+=x.t.amt-x.mine}});
-          return'<tr><td></td><td>Solo mío'+(unm.length?' <span class="note">(incluye sin marcar)</span>':'')+'</td><td class="n">'+money(so)+'</td><td></td><td class="n">'+money(so)+'</td><td class="n">—</td></tr>'+
-          '<tr><td></td><td>Solo de '+e(fn)+'</td><td class="n">'+money(sf)+'</td><td></td><td class="n">—</td><td class="n">'+money(sf)+'</td></tr>'+
-          '<tr><td></td><td>Compartido</td><td class="n">'+money(cT)+'</td><td></td><td class="n">'+money(cM)+'</td><td class="n">'+money(cF)+'</td></tr>'})()+'</table></div>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
+      var cu=ui.co&&ui.co[x.t.id],s=x.t.sh,amt=x.t.amt;
+      var cM='',cF='',cC='';
+      if(!can){cM='<span class="note">devolución</span>'}
+      else if(s==null||s>=100){cM=money(amt);so+=amt}
+      else if(s===0){cF=money(amt);sf+=amt}
+      else{cC=money(amt)+'<div class="note">'+e(mn.slice(0,9))+' '+money(x.mine)+'<br>'+e(fn.slice(0,9))+' '+money(oth)+'</div>';cT+=amt;cMs+=x.mine;cFs+=oth}
+      var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'||o==='none'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button><button data-own="custom" class="'+(o==='custom'||cu?'on':'')+'">Otro %</button></div>'+(o==='custom'||cu?'<div class="seg3 note" data-id="'+e(x.t.id)+'" style="margin-top:4px;flex-wrap:wrap">Solo mío $ <input class="ownsolo" size="7" inputmode="decimal" placeholder="0"> · del resto, mi % <input class="ownpc" size="3" inputmode="decimal" placeholder="50" value="'+(o==='custom'?Math.round(x.t.sh*100)/100:'')+'"> <button class="ownok pri">Aplicar</button></div>':''):'';
+      return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+e(x.t.cat)+(x.of?' <span class="chip cu">cuota '+x.n+'/'+x.of+'</span>'+(x.of-x.n?' faltan '+(x.of-x.n):' última'):'')+(o==='none'&&can?' · sin marcar':'')+'</div>'+seg+(x.of||!can?'':'<label class="note"><input type="checkbox" class="rec-on" data-key="'+e(x.key)+'" data-name="'+e(x.t.desc.replace(CU_RE,'').trim())+'"'+(x.rec?' checked':'')+'> se repite todos los meses</label>')+'</td><td class="n">'+cM+'</td><td class="n">'+cF+'</td><td class="n">'+cC+'</td></tr>'}).join('')+
+      '<tr class="t"><td></td><td>Total por columna'+(unm.length?' <span class="note">(sin marcar = Manuel)</span>':'')+'</td><td class="n">'+money(so)+'</td><td class="n">'+money(sf)+'</td><td class="n">'+money(cT)+'</td></tr>'+
+      '<tr class="t"><td></td><td>Lo que te toca a cada uno<div class="note">Sumando su parte de lo compartido</div></td><td class="n">'+money(tM)+'</td><td class="n">'+money(tF)+'</td><td></td></tr></table>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
     var flo=tot-mine;
     h+='<div class="paybox'+(paid?' ok':'')+'"><b>¿Quién pagó este resumen?</b> '+(paid?'<span class="chip ok">Lo pagaste vos</span> '+e(fn)+' te debe <b>'+money(flo)+'</b> y ya está en el saldo del Hogar. <button class="lnk" id="cunpay">deshacer</button>':'<button class="pri" id="cpay">Lo pagué yo</button> <span class="note">Hasta que lo confirmes, el reparto de arriba no entra al saldo.'+(unm.length?' Quedan '+unm.length+' sin marcar: cuentan 100% tuyos.':'')+'</span>')+'</div>'+
      '<p class="note">Pagás toda la tarjeta vos. Lo que marcás como de '+e(fn)+' o el resto de lo compartido es lo que ella te debe. «Otro %» es tu parte: con 5, vos ponés el 5% y ella el 95%. Se salda con la vida diaria.</p></div>';
@@ -735,14 +737,14 @@ function vTarjetas(){
     if(cfg.cardPaid)delete cfg.cardPaid[k];save('cfg');items.forEach(function(x){hogarRemove('p-'+x.t.id)});vTarjetas();
   });
   var am=$('#allme');if(am)am.addEventListener('click',function(){unm.forEach(function(x){x.t.sh=100});save(k);toast(unm.length+' marcados como tuyos');vTarjetas()});
-  v.querySelectorAll('.seg3 button').forEach(function(b){b.addEventListener('click',function(){
+  v.querySelectorAll('.seg3 button[data-own]').forEach(function(b){b.addEventListener('click',function(){
     var id=b.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id});if(!t)return;
     if(b.dataset.own==='custom'){if(!ui.co)ui.co={};ui.co[id]=1;vTarjetas();var inp=document.querySelector('.seg3[data-id="'+id+'"] .ownpc');if(inp)inp.focus();return}
     if(ui.co)delete ui.co[id];
     if(setOwner(t,k,b.dataset.own))vTarjetas();
   })});
   v.querySelectorAll('.ownok').forEach(function(b){b.addEventListener('click',function(){
-    var box=b.parentNode,id=box.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id});
+    var box=b.parentNode,id=box.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id});
     var so=parseNum(box.querySelector('.ownsolo').value)||0,pv=box.querySelector('.ownpc').value.trim(),pc=pv===''?(so>0?50:null):parseNum(pv);
     if(!t||pc==null||pc<0||pc>100||so<0||so>t.amt){toast('Revisá: el «solo mío» no puede pasar el total y el % va de 0 a 100');return}
     var mine=so+(t.amt-so)*pc/100,p=Math.round(mine/t.amt*10000)/100;
@@ -750,7 +752,7 @@ function vTarjetas(){
     t.sh=p;if(p>=100)hogarRemove('p-'+t.id);else hogarFromTx(t);save(k);toast('Tuyo '+money(mine)+' · '+fname()+' '+money(t.amt-mine));vTarjetas();
   })});
 }
-function ownLabel(t,fn){var o=ownOf(t),mn=H.ready?H.name:'Yo',m=myAmt(t);return o==='none'?'sin marcar (todo tuyo)':e(mn)+' '+money(m)+' · '+e(fn)+' '+money(t.amt-m)}
+function ownLabel(t,fn){var o=ownOf(t),mn=H.ready?myName():'Yo',m=myAmt(t);return o==='none'?'sin marcar (todo tuyo)':e(mn)+' '+money(m)+' · '+e(fn)+' '+money(t.amt-m)}
 
 /* ---------- VIDA DIARIA (Splitwise) ---------- */
 function hogarBalParts(k){
@@ -777,6 +779,7 @@ function vVida(){
   var h='<div class="kpis">'+
    '<div class="kpi"><div class="l">Gastado entre los dos</div><div class="v">'+money(totalAll)+'</div><div class="s">Sin alquiler fijo ni pagos de tarjeta</div></div>'+
    '<div class="kpi"><div class="l">Tu parte</div><div class="v">'+money(mine)+'</div><div class="s">'+pct(mine,totalAll)+' del total</div></div>'+
+   '<div class="kpi"><div class="l">Quién pagó</div><div class="v" style="font-size:17px">'+e(myName())+' '+money(all.filter(function(i){return i.payer===H.uid}).reduce(function(a,i){return a+i.amt},0))+'</div><div class="s">'+e(on)+' '+money(all.filter(function(i){return i.payer!==H.uid}).reduce(function(a,i){return a+i.amt},0))+'</div></div>'+
    '<div class="kpi"><div class="l">Saldo del mes</div><div class="v '+(mb.n>=0?'good':'badc')+'">'+money(Math.abs(mb.n))+'</div><div class="s">'+(Math.abs(mb.n)<1?'a mano':(mb.n>0?e(on)+' te debe':'le debés a '+e(on)))+'</div></div></div>';
   var bm=hogarBalParts(k),ba=hogarBalParts(null);
   h+='<div class="card"><h2>Saldo con '+e(on)+'</h2><table class="calc"><tr><th></th><th class="n">'+e(mlabel(k))+'</th><th class="n">Acumulado</th></tr>'+
@@ -1342,9 +1345,10 @@ function rlist(){
 }
 
 /* ---------- Hogar (gastos en pareja) ---------- */
+function myName(){return cfg.myName||'Manuel'}
 var H={ready:false,hid:null,uid:null,name:'',code:'',members:{},items:{},synced:{},t:0};
 function hogarOther(){var ids=Object.keys(H.members).filter(function(u){return u!==H.uid});return ids.length?ids[0]:null}
-function nameOf(u){return u===H.uid?'Vos':(H.members[u]||'La otra persona')}
+function nameOf(u){return u===H.uid?myName():(H.members[u]||'La otra persona')}
 function itemRow(it){return{hogar_id:H.hid,payer:H.uid,id:it.id,fecha:it.d,descripcion:it.desc,importe:it.amt,categoria:it.cat||null,nota:it.note||null,share:it.share==null?50:it.share,tipo:it.type||'gasto',ref:it.ref||null}}
 function rowItem(r){var it={id:r.id,d:r.fecha,desc:r.descripcion,amt:Number(r.importe),share:Number(r.share),type:r.tipo,payer:r.payer};if(r.categoria)it.cat=r.categoria;if(r.nota)it.note=r.nota;if(r.ref)it.ref=r.ref;return it}
 async function hogarLoad(){
@@ -1353,7 +1357,7 @@ async function hogarLoad(){
   if(!mm.data.length){H.ready=false;H.members={};H.items={};return}
   H.hid=mm.data[0].hogar_id;H.uid=S.uid;H.members={};
   mm.data.forEach(function(r){H.members[r.user_id]=r.nombre});
-  H.name=H.members[S.uid]||'';
+  H.NAME0=H.members[S.uid]||'';
   var hg=await sb.from('hogares').select('codigo').eq('id',H.hid).maybeSingle();
   H.code=(hg.data&&hg.data.codigo)||'';
   var items={},synced={};
@@ -1482,16 +1486,16 @@ function vHogar(){
   }
   if(Date.now()-H.t>20000){H.t=Date.now();hogarLoad().then(function(){if(ui.tab==='hogar')vHogar()}).catch(function(){})}
   var o=hogarOther(),on=o?H.members[o]:'La otra persona',tot=hogarBal(null),mb=hogarBal(ui.month);
-  var h='<div class="card"><div class="row"><h2 style="margin:0;flex:1">Hogar: '+e(H.name)+(o?' y '+e(on):'')+'</h2><button id="hrefresh">Actualizar</button></div>'+
-   '<div class="row" style="margin-top:8px"><label class="note">Tu nombre en el hogar</label><input id="hname" size="14" value="'+e(H.name)+'"><button id="hnamesave">Cambiar</button></div>'+
+  var h='<div class="card"><div class="row"><h2 style="margin:0;flex:1">Hogar: '+e(myName())+(o?' y '+e(on):'')+'</h2><button id="hrefresh">Actualizar</button></div>'+
+   '<div class="row" style="margin-top:8px"><label class="note">Tu nombre en el hogar</label><input id="hname" size="14" value="'+e(myName())+'"><button id="hnamesave">Cambiar</button></div>'+
    (o?'':'<p class="alert">Todavía no entró la otra persona. Que cree su cuenta en esta misma página y elija «Unirme» con este código: <b>'+e(H.code)+'</b></p>')+
    '<h3>Saldo acumulado entre ustedes</h3>'+balHtml(tot.n,on)+
    '<div class="row" style="margin-top:10px"><span class="note">Registrar un pago que hiciste a '+e(on)+':</span><input id="gamt" inputmode="decimal" placeholder="Importe" size="10"><input id="gdate" type="date" value="'+new Date().toISOString().slice(0,10)+'"><button id="gadd"'+(o?'':' disabled')+'>Registrar pago</button></div></div>';
   h+='<div class="card"><h2>'+e(mlabel(ui.month))+'</h2><table class="calc">'+
    '<tr><td>Gastado en conjunto</td><td class="n">'+money(mb.total)+'</td></tr>'+
-   '<tr><td>Pagó '+e(H.name)+'</td><td class="n">'+money(mb.paidMe)+'</td></tr>'+
+   '<tr><td>Pagó '+e(myName())+'</td><td class="n">'+money(mb.paidMe)+'</td></tr>'+
    '<tr><td>Pagó '+e(on)+'</td><td class="n">'+money(mb.paidO)+'</td></tr>'+
-   '<tr><td>Le corresponde a '+e(H.name)+' / a '+e(on)+'</td><td class="n">'+money(mb.consMe)+' / '+money(mb.consO)+'</td></tr>'+
+   '<tr><td>Le corresponde a '+e(myName())+' / a '+e(on)+'</td><td class="n">'+money(mb.consMe)+' / '+money(mb.consO)+'</td></tr>'+
    '<tr class="t"><td>Diferencia solo de este mes</td><td class="n">'+(Math.abs(mb.n)<0.5?'a mano':(mb.n>0?e(on)+' debe '+money(mb.n):'debés '+money(-mb.n))+' (sin contar pagos de meses anteriores)')+'</td></tr></table></div>';
   var list=(H.items[ui.month]||[]).slice().sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
   h+='<div class="card"><h2>Movimientos del hogar</h2>';
@@ -1512,13 +1516,14 @@ function vHogar(){
   });
   $('#hnamesave').addEventListener('click',function(){
     var nn=$('#hname').value.trim();if(!nn){toast('Poné un nombre');return}
+    cfg.myName=nn;save('cfg');
     sb.from('hogar_miembros').update({nombre:nn}).eq('hogar_id',H.hid).eq('user_id',S.uid).select().then(function(r){
-      if(r.error||!r.data||!r.data.length){toast('No me dejó cambiarlo (permisos de la base). Avisame y te paso el SQL');return}
-      H.members[S.uid]=nn;H.name=nn;toast('Listo');vHogar()})});
+      if(!r.error&&r.data&&r.data.length){H.members[S.uid]=nn;toast('Listo: lo ve también '+fname())}else toast('Listo en tu pantalla. Para que '+fname()+' también lo vea hace falta un permiso en la base')
+      vHogar()})});
   $('#hrefresh').addEventListener('click',function(){hogarLoad().then(function(){toast('Actualizado');vHogar()}).catch(function(){toast('No pude actualizar')})});
   $('#gadd').addEventListener('click',function(){
     var a=parseNum($('#gamt').value),d=$('#gdate').value;if(!a||a<=0||!d||!o){toast('Poné un importe y una fecha');return}
-    hogarUpsert({id:'g-'+uid(),d:d,desc:'Pago de '+H.name+' a '+on,amt:a,type:'pago'});toast('Pago registrado');ui.month=d.slice(0,7);vHogar();
+    hogarUpsert({id:'g-'+uid(),d:d,desc:'Pago de '+myName()+' a '+on,amt:a,type:'pago'});toast('Pago registrado');ui.month=d.slice(0,7);vHogar();
   });
   $('#hadd').addEventListener('click',function(){
     var d=$('#hdt').value,ds=$('#hds').value.trim(),a=parseNum($('#hmt').value),pc=parseNum($('#hpc').value);
