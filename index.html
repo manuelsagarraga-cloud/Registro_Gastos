@@ -88,6 +88,11 @@ tr.cur td{background:var(--acc2)}tr[data-month]{cursor:pointer}tr.lk{cursor:poin
 .prog{height:14px;background:var(--acc2);border-radius:99px;overflow:hidden}.prog i{display:block;height:100%;background:var(--ok)}
 .bar .t{display:flex}
 .kpi .s .chip{margin:0 6px 0 0}
+input.bigin{font-size:22px;font-weight:650;width:100%;border:0;border-bottom:1px dashed var(--line);border-radius:0;padding:0;background:none}
+.yearnav{margin-bottom:10px}
+.seg3{display:flex;gap:0;align-items:center}.seg3 button{border-radius:0;padding:3px 9px;font-size:13px;margin-left:-1px}.seg3 button:first-child{border-radius:8px 0 0 8px}.seg3 button:nth-child(3){border-radius:0 8px 8px 0}
+.seg3 button.on{background:var(--acc);color:#fff;border-color:var(--acc);position:relative}.seg3 input{margin-left:6px}
+tr.unm td{background:var(--warnbg)}
 </style>
 </head>
 <body>
@@ -136,7 +141,7 @@ var DEFAULT_RULES=[
  ['MERCADOLIBRE','Compras online'],['MERCADO LIBRE','Compras online'],
  ['RENTAS CORDOBA','Impuestos y comisiones'],['AFIP','Impuestos y comisiones'],['IMPUESTO','Impuestos y comisiones'],['DEV.IMP','Impuestos y comisiones'],['IVA','Impuestos y comisiones'],['COMISION','Impuestos y comisiones'],['GASTOS DE SERVICIO','Impuestos y comisiones'],['INTERES','Impuestos y comisiones'],['SELLOS','Impuestos y comisiones'],['DB.RG','Impuestos y comisiones']
 ];
-function defaultCfg(){return{cats:DEFAULT_CATS.slice(),rules:DEFAULT_RULES.map(function(r){return{k:r[0],c:r[1]}}),income:0,rent:0,fx:0,goalUSD:0,ruleVer:3,extraUSD:0,base:'avg',planned:[],months:[],rentPlan:null,incPlan:null,ahorro:[],sumGeneral:false}}
+function defaultCfg(){return{cats:DEFAULT_CATS.slice(),rules:DEFAULT_RULES.map(function(r){return{k:r[0],c:r[1]}}),income:0,rent:0,fx:0,goalUSD:0,ruleVer:3,extraUSD:0,base:'avg',planned:[],months:[],rentPlan:null,incPlan:null,ahorro:[],goals:{},sumGeneral:false}}
 var cfg=defaultCfg();
 var months={};
 var now=new Date();
@@ -419,6 +424,7 @@ function planRaise(p,k){
   var r=(p.raises||[]).find(function(x){return x.m===k&&x.m>p.from});
   return r?{pct:r.pct||0}:null;
 }
+function rentShare(){var p=cfg.rentPlan;return p&&p.share!=null?p.share:100}
 function rentOn(k){return planAmt(cfg.rentPlan,k)!=null}
 
 /* --- datos por mes --- */
@@ -476,6 +482,7 @@ function monthSummary(k){
   }else{
     var ci=cardItems(k);
     o.cardCu=sumM(ci.filter(function(x){return x.of}));
+    o.cardPaid=ci.reduce(function(a,x){return a+x.t.amt},0);
     o.cardCorr=sumM(ci.filter(function(x){return !x.of}));
   }
   o.card=o.cardCu+o.cardCorr;
@@ -486,7 +493,7 @@ function monthSummary(k){
   if(H.ready&&L.LH&&k>L.LH){o.vida=avgOf(function(m){return sumM(hogarDetail(m))},L.LH,3,true);proj.vida=1}
   else o.vida=sumM(hogarDetail(k));
   o.puntual=plannedFor(k).filter(function(p){return !p.auto}).reduce(function(a,p){return a+p.amt},0);
-  o.rent=planAmt(cfg.rentPlan,k)||0;
+  o.rentTotal=planAmt(cfg.rentPlan,k)||0;o.rentShare=rentShare();o.rent=o.rentTotal*o.rentShare/100;
   o.inc=planAmt(cfg.incPlan,k)||0;
   o.rentRaise=planRaise(cfg.rentPlan,k);
   o.incRaise=planRaise(cfg.incPlan,k);
@@ -532,8 +539,8 @@ function vMes(){
    '<div class="kpi"><div class="l">Sobra</div><div class="v '+(s.inc?(s.sobra>=0?'good':'badc'):'')+'">'+(s.inc?money(s.sobra):'—')+'</div><div class="s">'+(cfg.fx&&s.inc?usd(s.sobra/cfg.fx):'Ingreso − gastos')+'</div></div>'+
    '<div class="kpi"><div class="l">Ahorro registrado</div><div class="v">'+usd(savOf(k,'ahorro'))+'</div><div class="s">'+(savOf(k,'uso')?'Usaste '+usd(savOf(k,'uso')):'<button class="lnk" data-go="ahorro">Registrar</button>')+'</div></div></div>';
   h+='<div class="card"><h2>'+e(mlabel(k))+(s.isProj?' <span class="chip">estimado</span>':'')+'</h2><table class="calc">'+
-   '<tr><td>Alquiler e impuestos'+(s.rentRaise?'<span class="chip">aumento '+(s.rentRaise.pct?s.rentRaise.pct+'%':'% a definir')+'</span>':'')+'</td><td class="n">'+money(s.rent)+'</td></tr>'+
-   '<tr class="lk" data-go="tarjetas"><td>Tarjetas'+(s.proj.card?'<span class="chip">cuotas conocidas + promedio</span>':'')+'<div class="note">Cuotas '+money(s.cardCu)+' · compras del mes '+money(s.cardCorr)+'</div></td><td class="n">'+money(s.card)+'</td></tr>'+
+   '<tr><td>Alquiler e impuestos'+(s.rentShare<100&&s.rentTotal?'<div class="note">Total '+money(s.rentTotal)+' · tu parte '+s.rentShare+'%</div>':'')+(s.rentRaise?'<span class="chip">aumento '+(s.rentRaise.pct?s.rentRaise.pct+'%':'% a definir')+'</span>':'')+'</td><td class="n">'+money(s.rent)+'</td></tr>'+
+   '<tr class="lk" data-go="tarjetas"><td>Tarjetas'+(s.proj.card?'<span class="chip">cuotas conocidas + promedio</span>':'')+'<div class="note">Cuotas '+money(s.cardCu)+' · compras del mes '+money(s.cardCorr)+'</div>'+(s.cardPaid&&s.cardPaid-s.card>1?'<div class="note">Pagás '+money(s.cardPaid)+' en total; '+money(s.cardPaid-s.card)+' son de '+e(fname())+'</div>':'')+'</td><td class="n">'+money(s.card)+'</td></tr>'+
    '<tr class="lk" data-go="vida"><td>Vida diaria (Splitwise)'+(s.proj.vida?'<span class="chip">promedio 3 meses</span>':'')+(H.ready?'':'<div class="note">Armá el hogar para sumar esto.</div>')+'</td><td class="n">'+money(s.vida)+'</td></tr>'+
    '<tr class="lk" data-go="mov"><td>Cuenta (otros gastos directos)'+(s.proj.cuenta?'<span class="chip">promedio 3 meses</span>':'')+'</td><td class="n">'+money(s.cuenta)+'</td></tr>'+
    (s.puntual?'<tr><td>Gastos puntuales cargados</td><td class="n">'+money(s.puntual)+'</td></tr>':'')+
@@ -565,22 +572,46 @@ function vMes(){
 }
 
 /* ---------- TARJETAS ---------- */
+function ownOf(t){var s=t.sh;return s==null?'none':s>=100?'me':s===0?'flor':s===50?'half':'custom'}
+function fname(){var o=H.ready?hogarOther():null;return o?H.members[o]:'Flor'}
+function setOwner(t,k,mode){
+  if(!H.ready){toast('Primero armá el hogar (pestaña Hogar)');return false}
+  if(t.amt<=0){toast('Las devoluciones quedan como tuyas');return false}
+  if(mode==='me'){t.sh=100;hogarRemove('p-'+t.id)}
+  else{t.sh=mode==='flor'?0:50;hogarFromTx(t)}
+  save(k);return true;
+}
 function vTarjetas(){
-  var v=$('#view'),k=ui.month,L=lastMonths(),s=monthSummary(k),items=cardItems(k);
+  var v=$('#view'),k=ui.month,L=lastMonths(),s=monthSummary(k),items=cardItems(k),fn=fname();
   var isProj=L.LM&&k>L.LM;
-  var h='<div class="kpis">'+
-   '<div class="kpi"><div class="l">Tarjetas '+(isProj?'(estimado)':'')+'</div><div class="v">'+money(s.card)+'</div><div class="s">Tu parte, por mes de resumen</div></div>'+
-   '<div class="kpi"><div class="l">En cuotas</div><div class="v">'+money(s.cardCu)+'</div><div class="s">'+pct(s.cardCu,s.card)+' de la tarjeta</div></div>'+
-   '<div class="kpi"><div class="l">Compras del mes</div><div class="v">'+money(s.cardCorr)+'</div><div class="s">'+(isProj?'Promedio de 3 meses':'Pagos en un solo pago')+'</div></div></div>';
+  var tot=items.reduce(function(a,x){return a+x.t.amt},0),mine=sumM(items),unm=items.filter(function(x){return x.t.sh==null&&x.t.amt>0});
+  var unmAmt=unm.reduce(function(a,x){return a+x.t.amt},0),other=tot-mine-unmAmt*0;
+  var h='';
+  if(!isProj){
+    h+='<div class="kpis">'+
+     '<div class="kpi"><div class="l">Pagás de tarjeta</div><div class="v">'+money(tot)+'</div><div class="s">Todo el resumen sale de tu cuenta</div></div>'+
+     '<div class="kpi"><div class="l">Tu parte</div><div class="v">'+money(mine)+'</div><div class="s">'+pct(mine,tot)+' del resumen</div></div>'+
+     '<div class="kpi"><div class="l">Corresponde a '+e(fn)+'</div><div class="v">'+money(tot-mine)+'</div><div class="s">'+(H.ready?'Entra al saldo del Hogar':'Armá el hogar para llevar el saldo')+'</div></div>'+
+     '<div class="kpi"><div class="l">Sin marcar</div><div class="v '+(unm.length?'badc':'')+'">'+unm.length+'</div><div class="s">'+(unm.length?money(unmAmt)+' · se cuentan como tuyos':'Todo asignado')+'</div></div></div>';
+  }else{
+    h+='<div class="kpis"><div class="kpi"><div class="l">Tarjetas (estimado)</div><div class="v">'+money(s.card)+'</div><div class="s">Tu parte: cuotas conocidas + promedio</div></div>'+
+     '<div class="kpi"><div class="l">En cuotas</div><div class="v">'+money(s.cardCu)+'</div><div class="s">'+pct(s.cardCu,s.card)+'</div></div></div>';
+  }
   if(!L.LM)h+='<div class="card"><p>Todavía no hay resúmenes de tarjeta cargados. <button class="lnk" data-go="imp">Importar</button></p></div>';
   else if(isProj){
     var off=mdiff(k,L.LM),rows=cardItems(L.LM).filter(function(x){return x.of&&x.n<x.of&&off<=x.of-x.n});
-    h+='<div class="card"><h2>Cuotas que ya vienen en '+e(mlabel(k))+'</h2>'+(rows.length?'<table>'+rows.sort(function(a,b){return b.mine-a.mine}).map(function(x){return'<tr><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'</td><td><span class="chip cu">cuota '+(x.n+off)+'/'+x.of+'</span></td><td class="n">'+money(x.mine)+'</td></tr>'}).join('')+'</table>':'<p class="note">No quedan cuotas para este mes.</p>')+'<p class="note">Más lo que gastes en el mes: se estima con el promedio de tus últimos 3 resúmenes.</p></div>';
+    h+='<div class="card"><h2>Cuotas que ya vienen en '+e(mlabel(k))+'</h2>'+(rows.length?'<table>'+rows.sort(function(a,b){return b.mine-a.mine}).map(function(x){return'<tr><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'</td><td><span class="chip cu">cuota '+(x.n+off)+'/'+x.of+'</span></td><td class="note">'+ownLabel(x.t,fn)+'</td><td class="n">'+money(x.mine)+'</td></tr>'}).join('')+'</table>':'<p class="note">No quedan cuotas para este mes.</p>')+'<p class="note">Más lo que gastes en el mes: se estima con el promedio de tus últimos 3 resúmenes. «Tu parte» ya descuenta lo que marcaste como de '+e(fn)+'.</p></div>';
   }else{
-    items.sort(function(a,b){return b.mine-a.mine});
-    h+='<div class="card"><h2>Resumen de '+e(mlabel(k))+unfinished(k)+'</h2>'+(items.length?'<table><tr><th>Compra</th><th>Detalle</th><th>Cuota</th><th class="n">Tu parte</th></tr>'+items.map(function(x){
-      var dd=x.t.od||x.t.d;
-      return'<tr data-id="'+e(x.t.id)+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<span class="chip">'+e(x.t.cat)+'</span>'+(x.t.sh!=null?'<span class="chip">'+x.t.sh+'% mío</span>':'')+'</td><td>'+(x.of?'<span class="chip cu">'+x.n+'/'+x.of+'</span>'+(x.of-x.n?'<span class="note"> faltan '+(x.of-x.n)+'</span>':'<span class="note"> última</span>'):'')+'</td><td class="n">'+money(x.mine)+'</td></tr>'}).join('')+'</table>':'<p class="note">Sin resumen de tarjeta en este mes.</p>')+'</div>';
+    var lump=H.ready?(H.items[k]||[]).filter(function(it){return it.cat==='Pago de tarjeta'&&it.type!=='pago'}):[];
+    if(lump.length&&items.some(function(x){return x.t.sh!=null&&x.t.sh<100}))h+='<div class="alert"><b>Ojo con duplicar:</b> en Splitwise ya hay '+lump.length+' línea'+(lump.length>1?'s':'')+' de tarjeta este mes ('+money(lump.reduce(function(a,it){return a+it.amt},0))+'). Lo que marques acá también entra al saldo del Hogar, así que '+e(fn)+' pagaría dos veces. Cuando termines de marcar el mes, borrá esas líneas en la pestaña Hogar.</div>';
+    var f=ui.cf||'all';
+    var shown=items.filter(function(x){return f==='all'||ownOf(x.t)===f||(f==='half'&&ownOf(x.t)==='custom')}).sort(function(a,b){return b.t.amt-a.t.amt});
+    h+='<div class="card"><div class="row"><h2 style="margin:0;flex:1">Resumen de '+e(mlabel(k))+unfinished(k)+'</h2><select id="cf"><option value="all">Todos</option><option value="none">Sin marcar</option><option value="me">Míos</option><option value="flor">De '+e(fn)+'</option><option value="half">Compartidos</option></select>'+(unm.length?'<button id="allme">Los '+unm.length+' sin marcar son míos</button>':'')+'</div>';
+    h+=shown.length?'<div class="scroll"><table class="mt"><tr><th>Compra</th><th>Detalle</th><th>Cuota</th><th class="n">Total</th><th>De quién es</th><th class="n">Tu parte</th></tr>'+shown.map(function(x){
+      var dd=x.t.od||x.t.d,o=ownOf(x.t),can=x.t.amt>0;
+      var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button>'+(o==='custom'?'<input class="ownpc" size="3" value="'+x.t.sh+'">%':'')+'</div>':'<span class="note">devolución</span>';
+      return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<span class="chip">'+e(x.t.cat)+'</span></td><td>'+(x.of?'<span class="chip cu">'+x.n+'/'+x.of+'</span>'+(x.of-x.n?'<span class="note"> faltan '+(x.of-x.n)+'</span>':'<span class="note"> última</span>'):'')+'</td><td class="n">'+money(x.t.amt)+'</td><td>'+seg+'</td><td class="n">'+money(x.mine)+'</td></tr>'}).join('')+'</table></div>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
+    h+='<p class="note">Pagás toda la tarjeta vos. Lo que marcás como de '+e(fn)+' (o la mitad de lo compartido) se suma a lo que ella te debe en el Hogar y se salda con la vida diaria. Lo sin marcar cuenta 100% tuyo.</p></div>';
   }
   if(L.LM){
     var base=cardItems(L.LM).filter(function(x){return x.of&&x.n<x.of});
@@ -588,21 +619,45 @@ function vTarjetas(){
     var cols=[];for(var j=1;j<=maxOff;j++)cols.push(shiftMonth(L.LM,j));
     if(base.length){
       base.sort(function(a,b){return (b.of-b.n)-(a.of-a.n)});
-      var tot=cols.map(function(){return 0});
+      var tt=cols.map(function(){return 0});
       h+='<div class="card"><h2>Cuotas que vienen (desde el resumen de '+e(mshort(L.LM))+')</h2><div class="scroll"><table class="mt"><tr><th>Compra</th>'+cols.map(function(c){return'<th class="n">'+e(mshort(c))+'</th>'}).join('')+'</tr>'+
-       base.map(function(x){return'<tr><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'</td>'+cols.map(function(c,i){var o=i+1;if(o>x.of-x.n)return'<td class="n note">·</td>';tot[i]+=x.mine;return'<td class="n">'+money(x.mine)+'<div class="note">'+(x.n+o)+'/'+x.of+'</div></td>'}).join('')+'</tr>'}).join('')+
-       '<tr class="t"><td>Total comprometido</td>'+tot.map(function(a){return'<td class="n">'+money(a)+'</td>'}).join('')+'</tr></table></div><p class="note">Es lo que ya está financiado. Baja mes a mes a medida que terminan las cuotas; el resto del gasto de tarjeta se suma encima.</p></div>';
+       base.map(function(x){return'<tr><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+ownLabel(x.t,fn)+'</div></td>'+cols.map(function(c,i){var o=i+1;if(o>x.of-x.n)return'<td class="n note">·</td>';tt[i]+=x.mine;return'<td class="n">'+money(x.mine)+'<div class="note">'+(x.n+o)+'/'+x.of+'</div></td>'}).join('')+'</tr>'}).join('')+
+       '<tr class="t"><td>Tu parte comprometida</td>'+tt.map(function(a){return'<td class="n">'+money(a)+'</td>'}).join('')+'</tr></table></div><p class="note">Baja mes a mes a medida que terminan las cuotas. Los importes son tu parte, según lo que marcaste.</p></div>';
     }
     var ks=Object.keys(months).filter(function(m){return cardItems(m).length}).sort();
     if(ks.length){
       var mx=1,data=ks.map(function(m){var x=monthSummary(m);mx=Math.max(mx,x.card);return x});
-      h+='<div class="card"><h2>Tarjetas por mes</h2>'+data.map(function(x){return'<div class="bar" data-month="'+x.k+'"><span>'+e(mshort(x.k))+'</span><span class="t"><i style="width:'+Math.max(2,(x.cardCu/mx)*100)+'%;background:var(--c2)"></i><i style="width:'+(x.cardCorr/mx*100)+'%;background:var(--c3)"></i></span><span class="a">'+money(x.card)+'</span></div>'}).join('')+'<div class="legend"><span><i style="background:var(--c2)"></i>Cuotas</span><span><i style="background:var(--c3)"></i>Compras del mes</span></div></div>';
+      h+='<div class="card"><h2>Tu parte de tarjetas por mes</h2>'+data.map(function(x){return'<div class="bar" data-month="'+x.k+'"><span>'+e(mshort(x.k))+'</span><span class="t"><i style="width:'+Math.max(2,(x.cardCu/mx)*100)+'%;background:var(--c2)"></i><i style="width:'+(x.cardCorr/mx*100)+'%;background:var(--c3)"></i></span><span class="a">'+money(x.card)+'</span></div>'}).join('')+'<div class="legend"><span><i style="background:var(--c2)"></i>Cuotas</span><span><i style="background:var(--c3)"></i>Compras del mes</span></div></div>';
     }
   }
   v.innerHTML=h;bindChart(v);
+  var cf=$('#cf');if(cf){cf.value=ui.cf||'all';cf.addEventListener('change',function(){ui.cf=this.value;vTarjetas()})}
+  var am=$('#allme');if(am)am.addEventListener('click',function(){unm.forEach(function(x){x.t.sh=100});save(k);toast(unm.length+' marcados como tuyos');vTarjetas()});
+  v.querySelectorAll('.seg3 button').forEach(function(b){b.addEventListener('click',function(){
+    var id=b.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id});if(!t)return;
+    if(setOwner(t,k,b.dataset.own))vTarjetas();
+  })});
+  v.querySelectorAll('.ownpc').forEach(function(i){i.addEventListener('change',function(){
+    var id=i.parentNode.dataset.id,t=(months[k]||[]).find(function(x){return x.id===id}),p=parseNum(i.value);
+    if(!t||p==null||p<0||p>100){toast('El porcentaje va de 0 a 100');return}
+    t.sh=p;if(p>=100)hogarRemove('p-'+t.id);else hogarFromTx(t);save(k);vTarjetas();
+  })});
 }
+function ownLabel(t,fn){var o=ownOf(t);return o==='none'?'sin marcar':o==='me'?'mío':o==='flor'?'de '+fn:o==='half'?'50/50':t.sh+'% mío'}
 
 /* ---------- VIDA DIARIA (Splitwise) ---------- */
+function hogarBalParts(k){
+  var r={vida:0,card:0};
+  Object.keys(H.items).forEach(function(m){
+    if(k&&m!==k)return;
+    H.items[m].forEach(function(it){
+      if(it.type==='pago'){r.vida+=it.payer===H.uid?it.amt:-it.amt;return}
+      var g=(it.ref&&it.ref!=='splitwise')?'card':'vida',oth=it.amt*(100-it.share)/100;
+      r[g]+=it.payer===H.uid?oth:-oth;
+    });
+  });
+  r.n=r.vida+r.card;return r;
+}
 function vVida(){
   var v=$('#view'),k=ui.month;
   if(!H.ready){v.innerHTML='<div class="card"><h2>Vida diaria</h2><p>Esta vista usa el Hogar (lo que antes llevaban en Splitwise). Armalo y cargá el historial.</p><button class="pri" data-go="hogar">Ir al Hogar</button></div>';return}
@@ -616,6 +671,11 @@ function vVida(){
    '<div class="kpi"><div class="l">Gastado entre los dos</div><div class="v">'+money(totalAll)+'</div><div class="s">Sin alquiler fijo ni pagos de tarjeta</div></div>'+
    '<div class="kpi"><div class="l">Tu parte</div><div class="v">'+money(mine)+'</div><div class="s">'+pct(mine,totalAll)+' del total</div></div>'+
    '<div class="kpi"><div class="l">Saldo del mes</div><div class="v '+(mb.n>=0?'good':'badc')+'">'+money(Math.abs(mb.n))+'</div><div class="s">'+(Math.abs(mb.n)<1?'a mano':(mb.n>0?e(on)+' te debe':'le debés a '+e(on)))+'</div></div></div>';
+  var bm=hogarBalParts(k),ba=hogarBalParts(null);
+  h+='<div class="card"><h2>Saldo con '+e(on)+'</h2><table class="calc"><tr><th></th><th class="n">'+e(mlabel(k))+'</th><th class="n">Acumulado</th></tr>'+
+   '<tr><td>Vida diaria y pagos entre ustedes</td><td class="n">'+money(bm.vida)+'</td><td class="n">'+money(ba.vida)+'</td></tr>'+
+   '<tr><td>Parte de '+e(on)+' en tus tarjetas</td><td class="n">'+money(bm.card)+'</td><td class="n">'+money(ba.card)+'</td></tr>'+
+   '<tr class="t"><td>'+(ba.n>=0?e(on)+' te debe':'Le debés a '+e(on))+'</td><td class="n">'+money(Math.abs(bm.n))+'</td><td class="n '+(ba.n>=0?'good':'badc')+'">'+money(Math.abs(ba.n))+'</td></tr></table><p class="note">Pagás toda la tarjeta, así que lo que marcás como de '+e(on)+' en la pestaña Tarjetas se suma a lo que te debe y se salda junto con la vida diaria. Positivo = te debe a vos.</p></div>';
   var hist=[];for(var i=-11;i<=0;i++){var m=shiftMonth(k,i);hist.push({k:m,v:sumM(hogarDetail(m))})}
   var hm=Math.max.apply(null,hist.map(function(x){return x.v}).concat([1])),avg=hist.filter(function(x){return x.v>0}).reduce(function(a,x){return a+x.v},0)/Math.max(1,hist.filter(function(x){return x.v>0}).length);
   h+='<div class="card"><h2>Tu parte, últimos 12 meses</h2><div class="chart small">'+hist.map(function(x){return'<div class="col'+(x.k===k?' cur':'')+'" data-month="'+x.k+'"><div class="bw"><div class="stack"><div class="seg" style="height:'+(x.v/hm*100)+'%;background:var(--c3)" title="'+money(x.v)+'"></div></div></div><div class="lb">'+mshort(x.k).slice(0,3)+'</div></div>'}).join('')+'</div><p class="note">Promedio de los meses con datos: '+money(avg)+'. Se usa para estimar los meses que vienen.</p></div>';
@@ -631,7 +691,7 @@ function planCard(key,title,hint){
   var rows=[];for(var i=0;i<18;i++){var m=shiftMonth(k0,i);rows.push({k:m,a:planAmt(cfg[key],m),r:planRaise(cfg[key],m)})}
   var h='<div class="card" id="pc-'+key+'"><h2>'+title+'</h2><p class="note">'+hint+'</p><div class="grid2">'+
    '<label class="f">Monto mensual<input data-f="amt" inputmode="decimal" value="'+(p.amt||'')+'" placeholder="0"></label>'+
-   '<label class="f">Vigente desde<input data-f="from" type="month" value="'+(p.from||'')+'"></label></div>'+
+   '<label class="f">Vigente desde<input data-f="from" type="month" value="'+(p.from||'')+'"></label>'+(key==='rentPlan'?'<label class="f">Tu parte (%)<input data-f="share" inputmode="decimal" value="'+(p.share!=null?p.share:100)+'"></label>':'')+'</div>'+(key==='rentPlan'&&p.amt?'<p class="note">'+(p.share!=null&&p.share<100?'Total '+money(p.amt)+' · tu parte '+money(p.amt*p.share/100)+' por mes.':'Hoy se cuenta el 100% como tuyo. Si ese monto es el alquiler de los dos, poné 50.')+'</p>':'')+
    '<h3>Meses de aumento</h3>'+
    ((p.raises||[]).length?'<table>'+(p.raises||[]).slice().sort(function(a,b){return a.m<b.m?-1:1}).map(function(r){return'<tr><td>'+e(mlabel(r.m))+'</td><td>'+(r.pct?'+'+r.pct+'%':'<span class="chip">% a definir</span>')+'</td><td><button class="x rdel" data-m="'+r.m+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no marcaste aumentos.</p>')+
    '<div class="row" style="margin-top:8px"><input type="month" data-n="m"><input data-n="pct" inputmode="decimal" placeholder="% (vacío si no sabés)" size="16"><button data-n="add">Agregar aumento</button></div>'+
@@ -641,8 +701,9 @@ function planCard(key,title,hint){
 }
 function bindPlan(v,key){
   var box=v.querySelector('#pc-'+key);
-  function P(){if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[]};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
+  function P(){if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[],share:key==='rentPlan'?50:undefined};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
   box.querySelector('[data-f=amt]').addEventListener('change',function(){var p=P();p.amt=parseNum(this.value)||0;if(!p.from)p.from=curMonth();save('cfg');vPlan()});
+  var shi=box.querySelector('[data-f=share]');if(shi)shi.addEventListener('change',function(){var p=P(),x=parseNum(this.value);if(x==null||x<0||x>100){toast('El porcentaje va de 0 a 100');return}p.share=x;save('cfg');vPlan()});
   box.querySelector('[data-f=from]').addEventListener('change',function(){var p=P();if(this.value)p.from=this.value;save('cfg');vPlan()});
   box.querySelector('[data-n=add]').addEventListener('click',function(){
     var m=box.querySelector('[data-n=m]').value,pc=parseNum(box.querySelector('[data-n=pct]').value);
@@ -663,56 +724,101 @@ function bindPlan(v,key){
 function vPlan(){
   var v=$('#view');
   v.innerHTML='<p class="note">Los aumentos se aplican en cadena sobre el monto vigente. Si todavía no sabés el porcentaje, marcá el mes igual y dejalo vacío: se ve como «% a definir» y no cambia el monto.</p>'+
-   planCard('rentPlan','Alquiler e impuestos (tu parte)','Lo que pagás por mes de alquiler más impuestos y expensas fijas.')+
+   planCard('rentPlan','Alquiler e impuestos','Alquiler más impuestos y expensas fijas, el total de los dos. Abajo definís qué parte es tuya (50% si se divide a mitades).')+
    planCard('incPlan','Ingresos (neto, en mano)','Tu ingreso fijo mensual y cada cuánto sube.');
   bindPlan(v,'rentPlan');bindPlan(v,'incPlan');
 }
 
 /* ---------- AHORRO ---------- */
 function savOf(k,tipo){return (cfg.ahorro||[]).filter(function(a){return a.m===k&&a.tipo===tipo}).reduce(function(s,a){return s+a.usd},0)}
+function goalOf(y){
+  y=String(y);
+  if(cfg.goals&&cfg.goals[y]&&cfg.goals[y].usd!=null)return cfg.goals[y].usd;
+  return y===String(now.getFullYear())?(cfg.goalUSD||0):0;
+}
+function planExp(y,m){var g=cfg.goals&&cfg.goals[y];return g&&g.plan&&g.plan[m]!=null?g.plan[m]:null}
+function planOf(y,m){
+  var x=planExp(y,m);if(x!=null)return x;
+  var g=goalOf(y);if(!g)return 0;
+  var ex=0,u=0;for(var i=1;i<=12;i++){var mm=y+'-'+String(i).padStart(2,'0'),e2=planExp(y,mm);if(e2!=null)ex+=e2;else u++}
+  return u?Math.max(0,g-ex)/u:0;
+}
+function G(y){y=String(y);if(!cfg.goals)cfg.goals={};if(!cfg.goals[y])cfg.goals[y]={usd:goalOf(y),plan:{}};if(!cfg.goals[y].plan)cfg.goals[y].plan={};return cfg.goals[y]}
+function yearSaved(y,tipo){return (cfg.ahorro||[]).filter(function(a){return a.tipo===tipo&&a.m.slice(0,4)===String(y)}).reduce(function(s,a){return s+a.usd},0)}
 function vAhorro(){
-  var v=$('#view'),k=ui.month,yr=k.slice(0,4),fx=cfg.fx||0,A=cfg.ahorro||[];
-  var yS=A.filter(function(a){return a.tipo==='ahorro'&&a.m.slice(0,4)===yr}).reduce(function(s,a){return s+a.usd},0),
-      yU=A.filter(function(a){return a.tipo==='uso'&&a.m.slice(0,4)===yr}).reduce(function(s,a){return s+a.usd},0),
+  var v=$('#view'),yr=ui.ay||ui.month.slice(0,4),fx=cfg.fx||0,A=cfg.ahorro||[],goal=goalOf(yr);
+  var yS=yearSaved(yr,'ahorro'),yU=yearSaved(yr,'uso'),
       allS=A.filter(function(a){return a.tipo==='ahorro'}).reduce(function(s,a){return s+a.usd},0),
-      allU=A.filter(function(a){return a.tipo==='uso'}).reduce(function(s,a){return s+a.usd},0),
-      goal=cfg.goalUSD||0;
-  var h='<div class="kpis">'+
-   '<div class="kpi"><div class="l">Ahorrado en '+yr+'</div><div class="v">'+usd(yS)+'</div><div class="s">'+(goal?pct(yS,goal)+' de la meta de '+usd(goal):'Poné tu meta abajo')+'</div></div>'+
-   '<div class="kpi"><div class="l">Usaste del ahorro en '+yr+'</div><div class="v">'+usd(yU)+'</div><div class="s">Se descuenta del disponible</div></div>'+
-   '<div class="kpi"><div class="l">Ahorro disponible hoy</div><div class="v '+(allS-allU>=0?'good':'badc')+'">'+usd(allS-allU)+'</div><div class="s">Todo lo ahorrado − todo lo usado'+(fx?' · '+money((allS-allU)*fx):'')+'</div></div></div>';
-  if(goal)h+='<div class="card"><div class="prog"><i style="width:'+Math.min(100,yS/goal*100)+'%"></i></div><p class="note">Meta '+yr+': '+usd(goal)+'. Faltan '+usd(Math.max(0,goal-yS))+(yr===String(now.getFullYear())?' y quedan '+(12-now.getMonth())+' meses contando el actual: '+usd(Math.max(0,goal-yS)/Math.max(1,12-now.getMonth()))+' por mes.':'.')+'</p></div>';
-  h+='<div class="card"><h2>Anotar</h2><div class="grid2"><div><h3 style="margin-top:0">Ahorré</h3><div class="row"><input type="month" id="sm" value="'+k+'"><input id="su" inputmode="decimal" placeholder="USD" size="8"><input id="sn" placeholder="Nota (ej. compra de dólares)"><button class="pri" id="sadd">Registrar</button></div></div>'+
-   '<div><h3 style="margin-top:0">Gasté del ahorro</h3><div class="row"><input type="month" id="um" value="'+k+'"><input id="uu" inputmode="decimal" placeholder="USD" size="8"><input id="un" placeholder="En qué (ej. cerco)"><button id="uadd">Registrar</button></div></div></div></div>';
-  var bal=0;A.filter(function(a){return a.m.slice(0,4)<yr}).forEach(function(a){bal+=a.tipo==='ahorro'?a.usd:-a.usd});
-  var rows=[];
+      allU=A.filter(function(a){return a.tipo==='uso'}).reduce(function(s,a){return s+a.usd},0);
+  var h='<div class="row yearnav"><button id="yprev">‹</button><strong style="font-size:20px">'+yr+'</strong><button id="ynext">›</button><span class="note">Objetivo y registro por año</span></div>';
+  h+='<div class="kpis">'+
+   '<div class="kpi"><div class="l">Objetivo '+yr+'</div><div class="v"><input data-goal="1" inputmode="decimal" class="bigin" value="'+(goal||'')+'" placeholder="USD"></div><div class="s">'+(goal?usd(goal/12)+' por mes en promedio':'Poné cuánto querés ahorrar este año')+'</div></div>'+
+   '<div class="kpi"><div class="l">Ahorrado en '+yr+'</div><div class="v">'+usd(yS)+'</div><div class="s">'+(goal?pct(yS,goal)+' del objetivo · faltan '+usd(Math.max(0,goal-yS)):'—')+'</div></div>'+
+   '<div class="kpi"><div class="l">Gastado del ahorro en '+yr+'</div><div class="v">'+usd(yU)+'</div><div class="s">Neto del año: '+usd(yS-yU)+'</div></div>'+
+   '<div class="kpi"><div class="l">Ahorro disponible hoy</div><div class="v '+(allS-allU>=0?'good':'badc')+'">'+usd(allS-allU)+'</div><div class="s">Todos los años'+(fx?' · '+money((allS-allU)*fx):'')+'</div></div></div>';
+  if(goal)h+='<div class="card"><div class="prog"><i style="width:'+Math.min(100,yS/goal*100)+'%"></i></div></div>';
+  /* plan mes a mes */
+  var bal=0,pbal=0,rows=[],planSum=0;
   for(var i=1;i<=12;i++){
-    var m=yr+'-'+String(i).padStart(2,'0'),s=savOf(m,'ahorro'),u=savOf(m,'uso');bal+=s-u;
+    var m=yr+'-'+String(i).padStart(2,'0'),s=savOf(m,'ahorro'),u=savOf(m,'uso'),pl=planOf(yr,m),ex=planExp(yr,m);
+    bal+=s-u;pbal+=pl;planSum+=pl;
     var det=(months[m]||[]).filter(function(t){return t.cat==='Ahorro'}).reduce(function(a,t){return a+t.amt},0);
-    rows.push({m:m,s:s,u:u,b:bal,det:det,sum:monthSummary(m)});
+    rows.push({m:m,s:s,u:u,pl:pl,ex:ex,b:bal,pb:pbal,det:det,sum:monthSummary(m)});
   }
-  h+='<div class="card"><h2>'+yr+' mes a mes</h2><div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Ahorré</th><th class="n">Usé</th><th class="n">Acumulado</th><th class="n">Podía ahorrar</th></tr>'+rows.map(function(r){return'<tr class="'+(r.m===k?'cur':'')+'" data-month="'+r.m+'"><td>'+e(mshort(r.m))+(r.det?'<div class="note">en cuenta: '+money(r.det)+' a ahorro</div>':'')+'</td><td class="n">'+(r.s?usd(r.s):'—')+'</td><td class="n">'+(r.u?usd(r.u):'—')+'</td><td class="n"><b>'+usd(r.b)+'</b></td><td class="n note">'+(r.sum.inc?(fx?usd(r.sum.sobra/fx):money(r.sum.sobra)):'—')+(r.sum.isProj&&r.sum.inc?' (est.)':'')+'</td></tr>'}).join('')+'</table></div><p class="note">«Podía ahorrar» sale de tu plan: ingreso − gastos del mes, al dólar que cargues abajo.</p></div>';
-  var list=A.slice().sort(function(a,b){return a.m<b.m?1:a.m>b.m?-1:0});
-  h+='<div class="card"><h2>Movimientos de ahorro</h2>'+(list.length?'<table>'+list.map(function(a){return'<tr><td>'+e(mshort(a.m))+'</td><td>'+(a.tipo==='ahorro'?'<span class="chip ok">ahorré</span>':'<span class="chip bad">gasté</span>')+' '+e(a.note||'')+'</td><td class="n">'+usd(a.usd)+'</td><td><button class="x sdel" data-id="'+e(a.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no anotaste nada.</p>')+'</div>';
-  /* meta e ingreso necesario */
+  h+='<div class="card"><h2>Cuánto ahorrar mes a mes — '+yr+'</h2><div class="row"><button id="peven">Repartir parejo</button><button id="pfix">Recalcular lo que falta</button><span class="note">Plan: '+usd(planSum)+(goal?' de '+usd(goal)+(Math.abs(planSum-goal)>1?' <b class="badc">no coincide con el objetivo</b>':' ✓'):'')+'</span></div>'+
+   '<div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Debería ahorrar</th><th class="n">Ahorré</th><th class="n">Gasté del ahorro</th><th class="n">Diferencia</th><th class="n">Acumulado</th><th class="n">Según plan</th></tr>'+rows.map(function(r){
+    var past=r.m<=curMonth(),df=r.s-r.pl;
+    return'<tr class="'+(r.m===ui.month?'cur':'')+'"><td>'+e(mshort(r.m))+(r.det?'<div class="note">en cuenta: '+money(r.det)+' a ahorro</div>':'')+(r.sum.inc?'<div class="note">podría: '+(fx?usd(r.sum.sobra/fx):money(r.sum.sobra))+(r.sum.isProj?' (est.)':'')+'</div>':'')+'</td>'+
+     '<td class="n"><input class="pin" data-m="'+r.m+'" inputmode="decimal" size="6" value="'+(r.ex!=null?r.ex:'')+'" placeholder="'+(Math.round(r.pl*100)/100)+'"></td>'+
+     '<td class="n">'+(r.s?usd(r.s):'—')+'</td><td class="n">'+(r.u?usd(r.u):'—')+'</td>'+
+     '<td class="n '+(past&&r.pl?(df>=0?'good':'badc'):'note')+'">'+(past&&r.pl?(df>=0?'+':'')+usd(df):'—')+'</td>'+
+     '<td class="n"><b>'+usd(r.b)+'</b></td><td class="n note">'+usd(r.pb)+'</td></tr>'}).join('')+'</table></div><p class="note">Dejá el casillero vacío para usar el reparto parejo. Poné un valor para marcar meses de más (aguinaldo, un ingreso extra) o de menos. «Acumulado» es lo ahorrado menos lo gastado del ahorro, arrancando de cero cada año.</p></div>';
+  h+='<div class="card"><h2>Anotar</h2><div class="grid2"><div><h3 style="margin-top:0">Ahorré</h3><div class="row"><input type="month" id="sm" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="su" inputmode="decimal" placeholder="USD" size="8"><input id="sn" placeholder="Nota (ej. compra de dólares)"><button class="pri" id="sadd">Registrar</button></div></div>'+
+   '<div><h3 style="margin-top:0">Gasté del ahorro</h3><div class="row"><input type="month" id="um" value="'+(ui.month.slice(0,4)===yr?ui.month:yr+'-01')+'"><input id="uu" inputmode="decimal" placeholder="USD" size="8"><input id="un" placeholder="En qué (ej. cerco)"><button id="uadd">Registrar</button></div></div></div></div>';
+  var list=A.filter(function(a){return a.m.slice(0,4)===yr}).sort(function(a,b){return a.m<b.m?1:a.m>b.m?-1:0});
+  h+='<div class="card"><h2>Registro de '+yr+'</h2>'+(list.length?'<table>'+list.map(function(a){return'<tr><td>'+e(mshort(a.m))+'</td><td>'+(a.tipo==='ahorro'?'<span class="chip ok">ahorré</span>':'<span class="chip bad">gasté</span>')+' '+e(a.note||'')+'</td><td class="n">'+usd(a.usd)+'</td><td><button class="x sdel" data-id="'+e(a.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no anotaste nada este año.</p>')+'</div>';
+  /* resumen por año */
+  var ys={};ys[String(now.getFullYear())]=1;ys[String(now.getFullYear()+1)]=1;ys[yr]=1;
+  A.forEach(function(a){ys[a.m.slice(0,4)]=1});Object.keys(cfg.goals||{}).forEach(function(y){ys[y]=1});
+  h+='<div class="card"><h2>Año por año</h2><table><tr><th>Año</th><th class="n">Objetivo</th><th class="n">Ahorrado</th><th class="n">Avance</th><th class="n">Gastado</th><th class="n">Neto</th></tr>'+Object.keys(ys).sort().map(function(y){var g=goalOf(y),s=yearSaved(y,'ahorro'),u=yearSaved(y,'uso');return'<tr class="lk'+(y===yr?' cur':'')+'" data-year="'+y+'"><td><b>'+y+'</b></td><td class="n">'+(g?usd(g):'—')+'</td><td class="n">'+usd(s)+'</td><td class="n">'+(g?pct(s,g):'—')+'</td><td class="n">'+(u?usd(u):'—')+'</td><td class="n">'+usd(s-u)+'</td></tr>'}).join('')+'</table></div>';
+  /* ingreso necesario */
   var nm=[];for(var j=0;j<12;j++)nm.push(monthSummary(shiftMonth(curMonth(),j)));
   var avgT=nm.reduce(function(a,x){return a+x.total},0)/12,avgI=nm.reduce(function(a,x){return a+x.inc},0)/12;
-  h+='<div class="card"><h2>Meta y cuánto necesitás ganar</h2><div class="grid2">'+
-   '<label class="f">Meta de ahorro anual (USD)<input data-c="goalUSD" inputmode="decimal" value="'+(cfg.goalUSD||'')+'"></label>'+
+  h+='<div class="card"><h2>Cuánto necesitás ganar</h2><div class="grid2">'+
    '<label class="f">Dólar de referencia (ARS por USD)<input data-c="fx" inputmode="decimal" value="'+(cfg.fx||'')+'"></label>'+
    '<label class="f">Querés ahorrar de más por mes (USD)<input data-c="extraUSD" inputmode="decimal" value="'+(cfg.extraUSD||'')+'" placeholder="0"></label></div>';
   if(fx&&goal){
     var gm=goal/12+(cfg.extraUSD||0),need=avgT+gm*fx;
-    h+='<table class="calc" style="margin-top:10px"><tr><td>Gasto mensual proyectado (promedio próximos 12 meses)</td><td class="n">'+money(avgT)+'</td></tr><tr><td>Ahorro mensual que buscás ('+usd(gm)+')</td><td class="n">'+money(gm*fx)+'</td></tr><tr class="t"><td>Ingreso neto necesario</td><td class="n">'+money(need)+'</td></tr><tr><td>Tu ingreso planeado (promedio)</td><td class="n">'+(avgI?money(avgI):'—')+'</td></tr>'+(avgI?'<tr class="t"><td>Diferencia</td><td class="n '+(avgI>=need?'good':'badc')+'">'+money(avgI-need)+'</td></tr>':'')+'</table><p class="note">Incluye los aumentos de alquiler e ingresos que cargaste y las cuotas ya financiadas. Dólar fijo, sin inflación.</p>';
-  }else h+='<p class="note">Poné la meta y el dólar para calcular el ingreso necesario.</p>';
+    h+='<table class="calc" style="margin-top:10px"><tr><td>Gasto mensual proyectado (promedio próximos 12 meses)</td><td class="n">'+money(avgT)+'</td></tr><tr><td>Ahorro mensual que buscás ('+usd(gm)+')</td><td class="n">'+money(gm*fx)+'</td></tr><tr class="t"><td>Ingreso neto necesario</td><td class="n">'+money(need)+'</td></tr><tr><td>Tu ingreso planeado (promedio)</td><td class="n">'+(avgI?money(avgI):'—')+'</td></tr>'+(avgI?'<tr class="t"><td>Diferencia</td><td class="n '+(avgI>=need?'good':'badc')+'">'+money(avgI-need)+'</td></tr>':'')+'</table><p class="note">Usa el objetivo de '+yr+', los aumentos que cargaste y las cuotas ya financiadas. Dólar fijo, sin inflación.</p>';
+  }else h+='<p class="note">Poné el objetivo del año y el dólar para calcular el ingreso necesario.</p>';
   h+='</div>';
   v.innerHTML=h;bindChart(v);
+  $('#yprev').addEventListener('click',function(){ui.ay=String(+yr-1);vAhorro()});
+  $('#ynext').addEventListener('click',function(){ui.ay=String(+yr+1);vAhorro()});
+  v.querySelectorAll('[data-year]').forEach(function(r){r.addEventListener('click',function(){ui.ay=r.dataset.year;vAhorro()})});
+  v.querySelector('[data-goal]').addEventListener('change',function(){G(yr).usd=parseNum(this.value)||0;if(yr===String(now.getFullYear()))cfg.goalUSD=G(yr).usd;save('cfg');vAhorro()});
   v.querySelectorAll('[data-c]').forEach(function(i){i.addEventListener('change',function(){cfg[this.dataset.c]=parseNum(this.value)||0;save('cfg');vAhorro()})});
+  v.querySelectorAll('.pin').forEach(function(i){i.addEventListener('change',function(){
+    var g=G(yr),p=parseNum(this.value);
+    if(this.value.trim()===''||p==null)delete g.plan[this.dataset.m];else g.plan[this.dataset.m]=Math.max(0,p);
+    save('cfg');vAhorro();
+  })});
+  $('#peven').addEventListener('click',function(){G(yr).plan={};save('cfg');vAhorro()});
+  $('#pfix').addEventListener('click',function(){
+    if(!goal){toast('Primero poné el objetivo del año');return}
+    var start=yr<String(curMonth()).slice(0,4)?null:(yr===curMonth().slice(0,4)?curMonth():yr+'-01');
+    if(!start){toast('Ese año ya pasó');return}
+    var done=0,left=[];
+    for(var i=1;i<=12;i++){var m=yr+'-'+String(i).padStart(2,'0');if(m<start)done+=savOf(m,'ahorro');else left.push(m)}
+    var each=Math.round(Math.max(0,goal-done)/left.length*100)/100,g=G(yr);
+    for(var i2=1;i2<=12;i2++){var m2=yr+'-'+String(i2).padStart(2,'0');if(m2<start)g.plan[m2]=savOf(m2,'ahorro')}
+    left.forEach(function(m){g.plan[m]=each});save('cfg');toast('Cada mes que queda: '+usd(each));vAhorro();
+  });
   function add(tipo,mid,uid_,nid){
     var m=$(mid).value,a=parseNum($(uid_).value);
     if(!m||!a||a<=0){toast('Poné mes e importe en USD');return}
     if(!cfg.ahorro)cfg.ahorro=[];
-    cfg.ahorro.push({id:uid(),m:m,tipo:tipo,usd:a,note:$(nid).value.trim()});save('cfg');ui.month=m;vAhorro();
+    cfg.ahorro.push({id:uid(),m:m,tipo:tipo,usd:a,note:$(nid).value.trim()});save('cfg');ui.ay=m.slice(0,4);vAhorro();
   }
   $('#sadd').addEventListener('click',function(){add('ahorro','#sm','#su','#sn')});
   $('#uadd').addEventListener('click',function(){add('uso','#um','#uu','#un')});
@@ -757,7 +863,7 @@ function listMov(){
     var dd=t.od||t.d;
     h+='<tr data-id="'+e(t.id)+'"><td'+(t.od?' title="Resumen del '+e(t.d)+'"':'')+'>'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td>'+
      '<td>'+e(t.desc)+'<span class="chip">'+e(t.src)+'</span><br><input class="note-in" placeholder="¿Qué fue? (detalle propio)" value="'+e(t.note||'')+'" style="width:100%;margin-top:3px;font-size:13px">'+
-     '<div class="note" style="margin-top:3px"><label><input type="checkbox" class="sh-on"'+(t.sh!=null?' checked':'')+((H.ready&&t.amt>0)?'':' disabled')+'> Compartido con el hogar</label>'+(t.sh!=null?' · mi parte <input class="sh-pct" size="3" value="'+t.sh+'">%':'')+'</div></td>'+
+     '<div class="note" style="margin-top:3px"><label><input type="checkbox" class="sh-on"'+(t.sh!=null&&t.sh<100?' checked':'')+((H.ready&&t.amt>0)?'':' disabled')+'> Compartido con el hogar</label>'+(t.sh!=null&&t.sh<100?' · mi parte <input class="sh-pct" size="3" value="'+t.sh+'">%':'')+'</div></td>'+
      '<td class="n'+(t.amt<0?' neg':'')+'">'+money(t.amt)+'</td>'+
      '<td><select class="cat-in'+(t.sug?' sug':'')+'">'+cfg.cats.map(function(c){return'<option'+(c===t.cat?' selected':'')+'>'+e(c)+'</option>'}).join('')+'</select></td>'+
      '<td><button class="x del" title="Eliminar">×</button></td></tr>';
@@ -1160,6 +1266,7 @@ function hogarRemove(id){
 }
 function hogarFromTx(t){
   if(!H.ready||t.sh==null)return;
+  if(t.sh>=100){hogarRemove('p-'+t.id);return}
   hogarUpsert({id:'p-'+t.id,d:t.d,desc:t.desc,amt:t.amt,cat:t.cat,note:t.note||'',share:t.sh,type:'gasto',ref:t.id});
 }
 function hogarExtras(k){
