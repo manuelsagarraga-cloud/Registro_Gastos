@@ -451,12 +451,19 @@ function skipItem(k,cat,desc){
 function fijoMine(key,k){var a=planAmt(cfg[key],k);return a==null?0:a*shareOf(key)/100}
 
 /* --- datos por mes --- */
+function isRec(key){return (cfg.recurring||[]).some(function(r){return r.key===key})}
 function cardItems(k){
   return (months[k]||[]).filter(function(t){return t.src==='tarjeta'&&EXCL_NOSPEND.indexOf(t.cat)<0}).map(function(t){
-    var m=t.desc.match(CU_RE);
-    return{t:t,mine:myAmt(t),n:m?+m[1]:0,of:m?+m[2]:0,key:nk(t.desc.replace(CU_RE,''))};
+    var m=t.desc.match(CU_RE),key=nk(t.desc.replace(CU_RE,''));
+    return{t:t,mine:myAmt(t),n:m?+m[1]:0,of:m?+m[2]:0,key:key,rec:!m&&isRec(key)};
   });
 }
+function recAmt(key,upto){ /* tu parte del último cargo conocido de ese pago */
+  var ks=Object.keys(months).filter(function(m){return m<=upto}).sort().reverse();
+  for(var i=0;i<ks.length;i++){var f=cardItems(ks[i]).filter(function(x){return x.key===key&&!x.of&&x.t.amt>0});if(f.length)return f.reduce(function(a,x){return a+x.mine},0)}
+  return 0;
+}
+function recSumProj(upto){return (cfg.recurring||[]).reduce(function(a,r){return a+recAmt(r.key,upto)},0)}
 function cuentaRaw(k){
   return (months[k]||[]).filter(function(t){return t.src!=='tarjeta'&&EXCL_NOSPEND.indexOf(t.cat)<0&&!skipItem(k,t.cat,t.desc)}).map(function(t){return{t:t,mine:myAmt(t)}});
 }
@@ -499,13 +506,15 @@ function monthSummary(k){
     var off=mdiff(k,L.LM),cu=0;
     cardItems(L.LM).forEach(function(x){if(x.of&&x.n<x.of&&off<=x.of-x.n)cu+=x.mine});
     o.cardCu=cu;
-    o.cardCorr=avgOf(function(m){return sumM(cardItems(m).filter(function(x){return !x.of}))},L.LM,3);
+    o.recM=recSumProj(L.LM);
+    o.cardCorr=avgOf(function(m){return sumM(cardItems(m).filter(function(x){return !x.of&&!x.rec}))},L.LM,3)+o.recM;
     proj.card=1;
   }else{
     var ci=cardItems(k);
     o.cardCu=sumM(ci.filter(function(x){return x.of}));
     o.cardPaid=ci.reduce(function(a,x){return a+x.t.amt},0);
     o.cardCorr=sumM(ci.filter(function(x){return !x.of}));
+    o.recM=sumM(ci.filter(function(x){return x.rec}));
   }
   o.card=o.cardCu+o.cardCorr;
   /* cuenta */
@@ -683,8 +692,12 @@ function vTarjetas(){
       var dd=x.t.od||x.t.d,o=ownOf(x.t),can=x.t.amt>0,oth=x.t.amt-x.mine;tM+=x.mine;tF+=oth;
       var cu=ui.co&&ui.co[x.t.id];
       var seg=can?'<div class="seg3" data-id="'+e(x.t.id)+'"><button data-own="me" class="'+(o==='me'?'on':'')+'">Mío</button><button data-own="flor" class="'+(o==='flor'?'on':'')+'">'+e(fn)+'</button><button data-own="half" class="'+(o==='half'?'on':'')+'">50/50</button><button data-own="custom" class="'+(o==='custom'||cu?'on':'')+'">Otro %</button>'+(o==='custom'||cu?'<div class="note" style="margin-top:4px">Solo mío $ <input class="ownsolo" size="7" inputmode="decimal" placeholder="0"> · del resto, mi % <input class="ownpc" size="3" inputmode="decimal" placeholder="50" value="'+(o==='custom'?Math.round(x.t.sh*100)/100:'')+'"> <button class="ownok pri">Aplicar</button></div>':'')+'</div>':'<span class="note">devolución</span>';
-      return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+e(x.t.cat)+(x.of?' <span class="chip cu">cuota '+x.n+'/'+x.of+'</span>'+(x.of-x.n?' faltan '+(x.of-x.n):' última'):'')+(o==='custom'?' · '+x.t.sh+'% / '+(100-x.t.sh)+'%':'')+'</div></td><td class="n">'+money(x.t.amt)+'</td><td>'+seg+'</td><td class="n">'+money(x.mine)+'</td><td class="n">'+(o==='none'?'<span class="note">—</span>':money(oth))+'</td></tr>'}).join('')+
-      '<tr class="t"><td></td><td>Total</td><td class="n">'+money(tM+tF)+'</td><td></td><td class="n">'+money(tM)+'</td><td class="n">'+money(tF)+'</td></tr></table></div>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
+      return'<tr class="'+(o==='none'&&can?'unm':'')+'"><td class="note">'+e(dd.slice(8)+'/'+dd.slice(5,7))+'</td><td>'+e(x.t.desc.replace(CU_RE,'').trim())+'<div class="note">'+e(x.t.cat)+(x.of?' <span class="chip cu">cuota '+x.n+'/'+x.of+'</span>'+(x.of-x.n?' faltan '+(x.of-x.n):' última'):'')+(o==='custom'?' · '+x.t.sh+'% / '+(100-x.t.sh)+'%':'')+'</div>'+(x.of||x.t.amt<=0?'':'<label class="note"><input type="checkbox" class="rec-on" data-key="'+e(x.key)+'" data-name="'+e(x.t.desc.replace(CU_RE,'').trim())+'"'+(x.rec?' checked':'')+'> se repite todos los meses</label>')+'</td><td class="n">'+money(x.t.amt)+'</td><td>'+seg+'</td><td class="n">'+money(x.mine)+'</td><td class="n">'+(o==='none'?'<span class="note">—</span>':money(oth))+'</td></tr>'}).join('')+
+      '<tr class="t"><td></td><td>Total</td><td class="n">'+money(tM+tF)+'</td><td></td><td class="n">'+money(tM)+'</td><td class="n">'+money(tF)+'</td></tr>'+
+        (function(){var so=0,sf=0,cT=0,cM=0,cF=0;shown.forEach(function(x){var s=x.t.sh;if(!(x.t.amt>0))return;if(s==null||s>=100)so+=x.t.amt;else if(s===0)sf+=x.t.amt;else{cT+=x.t.amt;cM+=x.mine;cF+=x.t.amt-x.mine}});
+          return'<tr><td></td><td>Solo mío'+(unm.length?' <span class="note">(incluye sin marcar)</span>':'')+'</td><td class="n">'+money(so)+'</td><td></td><td class="n">'+money(so)+'</td><td class="n">—</td></tr>'+
+          '<tr><td></td><td>Solo de '+e(fn)+'</td><td class="n">'+money(sf)+'</td><td></td><td class="n">—</td><td class="n">'+money(sf)+'</td></tr>'+
+          '<tr><td></td><td>Compartido</td><td class="n">'+money(cT)+'</td><td></td><td class="n">'+money(cM)+'</td><td class="n">'+money(cF)+'</td></tr>'})()+'</table></div>':'<p class="note">'+(items.length?'Nada con ese filtro.':'Sin resumen de tarjeta en este mes.')+'</p>';
     var flo=tot-mine;
     h+='<div class="paybox'+(paid?' ok':'')+'"><b>¿Quién pagó este resumen?</b> '+(paid?'<span class="chip ok">Lo pagaste vos</span> '+e(fn)+' te debe <b>'+money(flo)+'</b> y ya está en el saldo del Hogar. <button class="lnk" id="cunpay">deshacer</button>':'<button class="pri" id="cpay">Lo pagué yo</button> <span class="note">Hasta que lo confirmes, el reparto de arriba no entra al saldo.'+(unm.length?' Quedan '+unm.length+' sin marcar: cuentan 100% tuyos.':'')+'</span>')+'</div>'+
      '<p class="note">Pagás toda la tarjeta vos. Lo que marcás como de '+e(fn)+' o el resto de lo compartido es lo que ella te debe. «Otro %» es tu parte: con 5, vos ponés el 5% y ella el 95%. Se salda con la vida diaria.</p></div>';
@@ -707,6 +720,11 @@ function vTarjetas(){
     }
   }
   v.innerHTML=h;bindChart(v);
+  v.querySelectorAll('.rec-on').forEach(function(c){c.addEventListener('change',function(){
+    if(!cfg.recurring)cfg.recurring=[];
+    if(c.checked){if(!isRec(c.dataset.key))cfg.recurring.push({key:c.dataset.key,name:c.dataset.name})}
+    else cfg.recurring=cfg.recurring.filter(function(r){return r.key!==c.dataset.key});
+    save('cfg');vTarjetas()})});
   var cf=$('#cf');if(cf){cf.value=ui.cf||'all';cf.addEventListener('change',function(){ui.cf=this.value;vTarjetas()})}
   var cp=$('#cpay');if(cp)cp.addEventListener('click',function(){
     if(!H.ready){toast('Primero armá el hogar (pestaña Hogar)');return}
@@ -829,6 +847,12 @@ function vPlan(){
    planCard('incPlan','Ingresos (neto)','Tu ingreso fijo mensual')+'</div>';
   v.querySelector('.plans').insertAdjacentHTML('afterend','');
   ['rentPlan','expTierralta','servDepto','incPlan'].forEach(function(k){bindPlan(v,k)});
+  var fx=cfg.fx||0,rows=[],c0=curMonth();
+  for(var i=0;i<12;i++){var m=shiftMonth(c0,i),s=monthSummary(m),fix=s.rent+s.exp+s.cardCu+(s.recM||0)+s.puntual,vr=s.total-fix,sv=fx?planOf(m.slice(0,4),m)*fx:0,free=s.inc-s.total-sv;rows.push({m:m,s:s,fix:fix,vr:vr,sv:sv,free:free})}
+  var nrec=(cfg.recurring||[]).length;
+  v.insertAdjacentHTML('beforeend','<div class="card"><h2>Cuándo podés gastar y cuándo no</h2><div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Ingreso</th><th class="n">Fijo comprometido</th><th class="n">Variable estimado</th><th class="n">Ahorro del plan</th><th class="n">Te queda libre</th><th></th></tr>'+
+   rows.map(function(r){var ok=r.s.inc>0,lim=r.s.inc*0.1;return'<tr class="'+(r.m===ui.month?'cur':'')+'"><td>'+e(mshort(r.m))+(r.s.isProj?' <span class="note">est.</span>':'')+'</td><td class="n">'+(ok?money(r.s.inc):'—')+'</td><td class="n">'+money(r.fix)+'</td><td class="n">'+money(r.vr)+'</td><td class="n">'+(r.sv?money(r.sv):'—')+'</td><td class="n"><b class="'+(ok?(r.free>=0?'good':'badc'):'note')+'">'+(ok?money(r.free):'—')+'</b></td><td>'+(!ok?'':r.free<0?'<span class="chip bad">no gastar de más</span>':r.free<lim?'<span class="chip">justo</span>':'<span class="chip ok">hay margen</span>')+'</td></tr>'}).join('')+
+   '</table></div><p class="note">Fijo = alquiler, expensas, cuotas que ya vienen, pagos que marcaste como mensuales ('+nrec+') y puntuales. Variable = promedio de tus últimos meses (compras de tarjeta, cuenta y vida diaria).'+(fx?'':' Poné el dólar en Ahorro para descontar el ahorro del plan.')+' Los meses «est.» son proyección, no datos reales.</p></div>');
 }
 
 /* ---------- AHORRO ---------- */
@@ -1459,6 +1483,7 @@ function vHogar(){
   if(Date.now()-H.t>20000){H.t=Date.now();hogarLoad().then(function(){if(ui.tab==='hogar')vHogar()}).catch(function(){})}
   var o=hogarOther(),on=o?H.members[o]:'La otra persona',tot=hogarBal(null),mb=hogarBal(ui.month);
   var h='<div class="card"><div class="row"><h2 style="margin:0;flex:1">Hogar: '+e(H.name)+(o?' y '+e(on):'')+'</h2><button id="hrefresh">Actualizar</button></div>'+
+   '<div class="row" style="margin-top:8px"><label class="note">Tu nombre en el hogar</label><input id="hname" size="14" value="'+e(H.name)+'"><button id="hnamesave">Cambiar</button></div>'+
    (o?'':'<p class="alert">Todavía no entró la otra persona. Que cree su cuenta en esta misma página y elija «Unirme» con este código: <b>'+e(H.code)+'</b></p>')+
    '<h3>Saldo acumulado entre ustedes</h3>'+balHtml(tot.n,on)+
    '<div class="row" style="margin-top:10px"><span class="note">Registrar un pago que hiciste a '+e(on)+':</span><input id="gamt" inputmode="decimal" placeholder="Importe" size="10"><input id="gdate" type="date" value="'+new Date().toISOString().slice(0,10)+'"><button id="gadd"'+(o?'':' disabled')+'>Registrar pago</button></div></div>';
@@ -1485,6 +1510,11 @@ function vHogar(){
     var f=this.files[0];if(!f)return;
     hogarImport(f).then(function(n){toast(n+' movimientos importados. Guardando…');vHogar()}).catch(function(err){toast(err&&err.message?err.message:'No pude leer el archivo')});
   });
+  $('#hnamesave').addEventListener('click',function(){
+    var nn=$('#hname').value.trim();if(!nn){toast('Poné un nombre');return}
+    sb.from('hogar_miembros').update({nombre:nn}).eq('hogar_id',H.hid).eq('user_id',S.uid).select().then(function(r){
+      if(r.error||!r.data||!r.data.length){toast('No me dejó cambiarlo (permisos de la base). Avisame y te paso el SQL');return}
+      H.members[S.uid]=nn;H.name=nn;toast('Listo');vHogar()})});
   $('#hrefresh').addEventListener('click',function(){hogarLoad().then(function(){toast('Actualizado');vHogar()}).catch(function(){toast('No pude actualizar')})});
   $('#gadd').addEventListener('click',function(){
     var a=parseNum($('#gamt').value),d=$('#gdate').value;if(!a||a<=0||!d||!o){toast('Poné un importe y una fecha');return}
