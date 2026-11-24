@@ -568,12 +568,15 @@ function fijoStatus(f,k){
   if(c)return{by:'splitwise',it:c};
   return null;
 }
-function payFijo(f,k){
+function payFijo(f,k,who){
   if(!H.ready){toast('Primero armá el hogar (pestaña Hogar)');return false}
   var a=planAmt(cfg[f.key],k),sh=shareOf(f.key);
   if(!a){toast('Cargá el monto en Alquiler e ingresos');return false}
   if(sh>=100){toast('Tu parte está en 100%: no hay nada que repartir. Cambiala en Alquiler e ingresos');return false}
-  hogarUpsert({id:'fijo-'+f.key+'-'+k,d:k+'-10',desc:f.label+' '+mlabel(k),amt:Math.round(a),cat:f.cat,share:sh,type:'gasto',ref:f.ref});
+  var oth=hogarOther();
+  if(who==='other'&&!oth){toast('Todavía no entró la otra persona al hogar');return false}
+  var id='fijo-'+f.key+'-'+k;hogarRemove(id);if(oth)hogarRemove(id,oth);
+  hogarUpsert({id:id,d:k+'-10',desc:f.label+' '+mlabel(k),amt:Math.round(a),cat:f.cat,share:who==='other'?100-sh:sh,type:'gasto',ref:f.ref},who==='other'?oth:H.uid);
   return true;
 }
 function pagosCard(k){
@@ -584,22 +587,22 @@ function pagosCard(k){
   act.forEach(function(f){
     var tot=planAmt(cfg[f.key],k),sh=shareOf(f.key),st=fijoStatus(f,k),btn;
     if(st&&st.by==='me')btn='<span class="chip ok">Lo pagaste vos</span> <button class="lnk payundo" data-f="'+f.key+'">deshacer</button>';
-    else if(st&&st.by==='other')btn='<span class="chip ok">Lo pagó '+e(nameOf(st.it.payer))+'</span>';
+    else if(st&&st.by==='other')btn='<span class="chip ok">Lo pagó '+e(nameOf(st.it.payer))+'</span> <button class="lnk payundo" data-f="'+f.key+'" data-by="other">deshacer</button>';
     else if(st&&st.by==='splitwise')btn='<span class="chip">Ya está en Splitwise ('+e(nameOf(st.it.payer))+')</span>';
-    else btn='<button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button>';
+    else btn='<button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button> <button class="pay" data-f="'+f.key+'" data-who="other">Lo pagó '+e(fn)+'</button>';
     h+='<tr><td>'+e(f.label)+'<div class="note">Total '+money(tot)+' · tu parte '+sh+'%'+(!st?' · todavía no cuenta en el saldo':'')+'</div></td><td class="n">'+money(tot*sh/100)+'</td><td class="n">'+btn+'</td></tr>';
   });
   if(items.length){
     var flo=items.reduce(function(a,x){return a+x.t.amt-x.mine},0);
     h+='<tr><td>Resumen de tarjeta<div class="note">'+(paid?e(fn)+' te debe '+money(flo)+' por este resumen':'Confirmá abajo del resumen en Tarjetas')+'</div></td><td class="n">'+money(sumM(items))+'</td><td class="n">'+(paid?'<span class="chip ok">Lo pagaste vos</span>':'<button class="lnk" data-go="tarjetas">confirmar</button>')+'</td></tr>';
   }
-  h+='</table><p class="note">Al confirmar quién pagó, el reparto entra al saldo del Hogar y se salda junto con la vida diaria. Si lo pagó '+e(fn)+', lo confirma ella desde su cuenta y acá lo ves.</p></div>';
+  h+='</table><p class="note">Al confirmar quién pagó, el reparto entra al saldo del Hogar y se salda junto con la vida diaria. Si lo pagó '+e(fn)+', tocá «Lo pagó '+e(fn)+'» y queda registrado sin que ella tenga que entrar.</p></div>';
   return h;
 }
 function bindPagos(v,k){
   v.querySelectorAll('.pay').forEach(function(b){b.addEventListener('click',function(){
-    var f=FIJOS.find(function(x){return x.key===b.dataset.f});if(payFijo(f,k)){toast('Confirmado: entra al saldo del Hogar');render()}})});
-  v.querySelectorAll('.payundo').forEach(function(b){b.addEventListener('click',function(){hogarRemove('fijo-'+b.dataset.f+'-'+k);render()})});
+    var f=FIJOS.find(function(x){return x.key===b.dataset.f});if(payFijo(f,k,b.dataset.who)){toast('Confirmado: entra al saldo del Hogar');render()}})});
+  v.querySelectorAll('.payundo').forEach(function(b){b.addEventListener('click',function(){hogarRemove('fijo-'+b.dataset.f+'-'+k,b.dataset.by==='other'?hogarOther():H.uid);render()})});
 }
 
 /* ---------- MES ---------- */
@@ -667,6 +670,7 @@ function vTarjetas(){
   var tot=items.reduce(function(a,x){return a+x.t.amt},0),mine=sumM(items),unm=items.filter(function(x){return x.t.sh==null&&x.t.amt>0});
   var unmAmt=unm.reduce(function(a,x){return a+x.t.amt},0),other=tot-mine-unmAmt*0;
   var h='';
+  if(ui.repNote){var rn=ui.repNote;h+='<div class="alert"><b>Reparto de la planilla aplicado:</b> '+rn.n+' gastos en '+rn.meses.map(mshort).join(', ')+'.'+(rn.sin.length?' Sin regla (quedaron como estaban): '+rn.sin.map(e).join(' · '):' Todos los gastos tuvieron regla.')+' <button class="lnk" id="repok">cerrar</button></div>'}
   if(!isProj){
     h+='<div class="kpis">'+
      '<div class="kpi"><div class="l">Pagás de tarjeta</div><div class="v">'+money(tot)+'</div><div class="s">Todo el resumen sale de tu cuenta</div></div>'+
@@ -722,6 +726,7 @@ function vTarjetas(){
     }
   }
   v.innerHTML=h;bindChart(v);
+  var rok=$('#repok');if(rok)rok.addEventListener('click',function(){ui.repNote=null;vTarjetas()});
   v.querySelectorAll('.rec-on').forEach(function(c){c.addEventListener('change',function(){
     if(!cfg.recurring)cfg.recurring=[];
     if(c.checked){if(!isRec(c.dataset.key))cfg.recurring.push({key:c.dataset.key,name:c.dataset.name})}
@@ -1127,6 +1132,22 @@ function vImp(){
   $('#useText').addEventListener('click',function(){I.text=$('#itext').value;I.rows=null;I.name='Texto pegado';I.cierre=undefined;impArea()});
   impArea();
 }
+function applyReparto(d){
+  var by={},n=0,sin=[],meses={};
+  d.reglas.forEach(function(r){(by[r.mes]=by[r.mes]||[]).push({pat:nk(r.pat),amt:r.amt,sh:r.sh,used:false})});
+  Object.keys(by).forEach(function(k){
+    var rules=by[k];
+    (months[k]||[]).filter(function(t){return t.src==='tarjeta'&&t.amt!==0}).forEach(function(t){
+      var d0=nk(t.desc),hit=null;
+      for(var i=0;i<rules.length;i++){var r=rules[i];if(r.amt!=null&&r.used)continue;if(d0.indexOf(r.pat)>-1&&(r.amt==null||Math.abs(r.amt-t.amt)<1.5)){hit=r;break}}
+      if(!hit){if(EXCL_NOSPEND.indexOf(t.cat)<0)sin.push(mshort(k)+' · '+t.desc.replace(CU_RE,'').trim()+' '+money(t.amt));return}
+      hit.used=true;t.sh=hit.sh;n++;meses[k]=1;
+      if(H.ready){if(t.sh>=100)hogarRemove('p-'+t.id);else hogarFromTx(t)}
+    });
+    save(k);
+  });
+  return{n:n,sin:sin,meses:Object.keys(meses)};
+}
 async function handleFile(f){
   var I=ui.imp,ext=(f.name.split('.').pop()||'').toLowerCase();
   I.name=f.name;I.rows=null;I.text='';I.map=null;I.cierre=undefined;$('#fname').textContent='Leyendo '+f.name+'…';
@@ -1138,7 +1159,8 @@ async function handleFile(f){
         if(!H.ready)throw new Error('Primero creá o uní el hogar en la pestaña Hogar');
         var nh=await hogarImport(f);I.name='';toast(nh+' movimientos cargados en el hogar');ui.tab='hogar';render();return;
       }
-      throw new Error('Ese .json no es un respaldo ni un historial de hogar');
+      if(jd&&jd.kind==='reparto'&&Array.isArray(jd.reglas)){var rr=applyReparto(jd);I.name='';ui.repNote=rr;ui.tab='tarjetas';toast(rr.n+' gastos de tarjeta actualizados');render();return}
+      throw new Error('Ese .json no es un respaldo, un historial de hogar ni un reparto');
     }
     if(ext==='csv'||ext==='txt'){
       var buf=await f.arrayBuffer();var t=new TextDecoder('utf-8').decode(buf);
@@ -1349,7 +1371,7 @@ function myName(){return cfg.myName||'Manuel'}
 var H={ready:false,hid:null,uid:null,name:'',code:'',members:{},items:{},synced:{},t:0};
 function hogarOther(){var ids=Object.keys(H.members).filter(function(u){return u!==H.uid});return ids.length?ids[0]:null}
 function nameOf(u){return u===H.uid?myName():(H.members[u]||'La otra persona')}
-function itemRow(it){return{hogar_id:H.hid,payer:H.uid,id:it.id,fecha:it.d,descripcion:it.desc,importe:it.amt,categoria:it.cat||null,nota:it.note||null,share:it.share==null?50:it.share,tipo:it.type||'gasto',ref:it.ref||null}}
+function itemRow(it){return{hogar_id:H.hid,payer:it.payer||H.uid,id:it.id,fecha:it.d,descripcion:it.desc,importe:it.amt,categoria:it.cat||null,nota:it.note||null,share:it.share==null?50:it.share,tipo:it.type||'gasto',ref:it.ref||null}}
 function rowItem(r){var it={id:r.id,d:r.fecha,desc:r.descripcion,amt:Number(r.importe),share:Number(r.share),type:r.tipo,payer:r.payer};if(r.categoria)it.cat=r.categoria;if(r.nota)it.note=r.nota;if(r.ref)it.ref=r.ref;return it}
 async function hogarLoad(){
   var mm=await sb.from('hogar_miembros').select('hogar_id,user_id,nombre');
@@ -1364,7 +1386,7 @@ async function hogarLoad(){
   for(var from=0;;from+=1000){
     var r=await sb.from('hogar_items').select('*').eq('hogar_id',H.hid).order('fecha',{ascending:true}).range(from,from+999);
     if(r.error)throw r.error;
-    r.data.forEach(function(x){var it=rowItem(x),k=it.d.slice(0,7);(items[k]=items[k]||[]).push(it);if(it.payer===S.uid)synced[it.id]={k:k,j:JSON.stringify(itemRow(it))}});
+    r.data.forEach(function(x){var it=rowItem(x),k=it.d.slice(0,7);(items[k]=items[k]||[]).push(it);synced[it.payer+'|'+it.id]={k:k,j:JSON.stringify(itemRow(it))}});
     if(r.data.length<1000)break;
   }
   H.items=items;H.synced=synced;H.ready=true;H.t=Date.now();
@@ -1377,33 +1399,49 @@ function hogarSave(k){
 async function hogarDoSave(k){
   setBadge('Guardando…');
   try{
-    var mine=(H.items[k]||[]).filter(function(p){return p.payer===H.uid}),up=[],seen={};
-    mine.forEach(function(it){var row=itemRow(it),j=JSON.stringify(row);seen[it.id]=1;if(!H.synced[it.id]||H.synced[it.id].j!==j)up.push({row:row,j:j,id:it.id})});
-    var del=Object.keys(H.synced).filter(function(id){return H.synced[id].k===k&&!seen[id]});
-    if(up.length){
-      var r=await sb.from('hogar_items').upsert(up.map(function(x){return x.row}),{onConflict:'hogar_id,payer,id'});
+    var arr=H.items[k]||[],up=[],seen={};
+    arr.forEach(function(it){var row=itemRow(it),j=JSON.stringify(row),key=it.payer+'|'+it.id;seen[key]=1;if(!H.synced[key]||H.synced[key].j!==j)up.push({row:row,j:j,key:key,other:it.payer!==H.uid,it:it})});
+    var del=Object.keys(H.synced).filter(function(key){return H.synced[key].k===k&&!seen[key]});
+    var own=up.filter(function(x){return !x.other}),oth=up.filter(function(x){return x.other});
+    if(own.length){
+      var r=await sb.from('hogar_items').upsert(own.map(function(x){return x.row}),{onConflict:'hogar_id,payer,id'});
       if(r.error)throw r.error;
-      up.forEach(function(x){H.synced[x.id]={k:k,j:x.j}});
+      own.forEach(function(x){H.synced[x.key]={k:k,j:x.j}});
+    }
+    if(oth.length){
+      var ro=await sb.from('hogar_items').upsert(oth.map(function(x){return x.row}),{onConflict:'hogar_id,payer,id'});
+      if(ro.error){
+        oth.forEach(function(x){var i=arr.indexOf(x.it);if(i>-1)arr.splice(i,1)});
+        setBadge('Guardado ✓');toast('No se guardó lo de '+fname()+': falta el permiso en la base (SQL de «quién pagó»). Lo tuyo sí se guardó.');
+        if(ui.tab==='hogar')vHogar();return;
+      }
+      oth.forEach(function(x){H.synced[x.key]={k:k,j:x.j}});
     }
     if(del.length){
-      var r2=await sb.from('hogar_items').delete().eq('hogar_id',H.hid).eq('payer',H.uid).in('id',del);
-      if(r2.error)throw r2.error;
-      del.forEach(function(id){delete H.synced[id]});
+      var by={};del.forEach(function(key){var i=key.indexOf('|');(by[key.slice(0,i)]=by[key.slice(0,i)]||[]).push(key.slice(i+1))});
+      var pk=Object.keys(by);
+      for(var n=0;n<pk.length;n++){
+        var r2=await sb.from('hogar_items').delete().eq('hogar_id',H.hid).eq('payer',pk[n]).in('id',by[pk[n]]).select('id');
+        if(r2.error)throw r2.error;
+        if(pk[n]!==H.uid&&(!r2.data||!r2.data.length))toast('No pude borrar lo de '+fname()+': falta el permiso en la base');
+      }
+      del.forEach(function(key){delete H.synced[key]});
     }
     setBadge('Guardado ✓');
   }catch(err){setBadge('Error al guardar');toast('No pude guardar en el hogar: '+(err&&err.message?err.message:'error'))}
 }
-function hogarUpsert(item){
-  var k=item.d.slice(0,7);item.payer=H.uid;
+function hogarUpsert(item,payer){
+  var k=item.d.slice(0,7);item.payer=payer||H.uid;
   var arr=H.items[k]||(H.items[k]=[]);
-  var idx=arr.findIndex(function(x){return x.id===item.id&&x.payer===H.uid});
+  var idx=arr.findIndex(function(x){return x.id===item.id&&x.payer===item.payer});
   if(idx>-1)arr[idx]=item;else arr.push(item);
   arr.sort(function(a,b){return a.d<b.d?-1:a.d>b.d?1:0});
   hogarSave(k);
 }
-function hogarRemove(id){
+function hogarRemove(id,payer){
+  payer=payer||H.uid;
   Object.keys(H.items).forEach(function(k){
-    var arr=H.items[k],i=arr.findIndex(function(x){return x.id===id&&x.payer===H.uid});
+    var arr=H.items[k],i=arr.findIndex(function(x){return x.id===id&&x.payer===payer});
     if(i>-1){arr.splice(i,1);hogarSave(k)}
   });
 }
@@ -1490,7 +1528,7 @@ function vHogar(){
    '<div class="row" style="margin-top:8px"><label class="note">Tu nombre en el hogar</label><input id="hname" size="14" value="'+e(myName())+'"><button id="hnamesave">Cambiar</button></div>'+
    (o?'':'<p class="alert">Todavía no entró la otra persona. Que cree su cuenta en esta misma página y elija «Unirme» con este código: <b>'+e(H.code)+'</b></p>')+
    '<h3>Saldo acumulado entre ustedes</h3>'+balHtml(tot.n,on)+
-   '<div class="row" style="margin-top:10px"><span class="note">Registrar un pago que hiciste a '+e(on)+':</span><input id="gamt" inputmode="decimal" placeholder="Importe" size="10"><input id="gdate" type="date" value="'+new Date().toISOString().slice(0,10)+'"><button id="gadd"'+(o?'':' disabled')+'>Registrar pago</button></div></div>';
+   '<div class="row" style="margin-top:10px"><span class="note">Registrar un pago entre ustedes:</span><select id="gdir"><option value="me">Yo le pagué a '+e(on)+'</option><option value="other">'+e(on)+' me pagó a mí</option></select><input id="gamt" inputmode="decimal" placeholder="Importe" size="10"><input id="gdate" type="date" value="'+new Date().toISOString().slice(0,10)+'"><button id="gadd"'+(o?'':' disabled')+'>Registrar pago</button></div></div>';
   h+='<div class="card"><h2>'+e(mlabel(ui.month))+'</h2><table class="calc">'+
    '<tr><td>Gastado en conjunto</td><td class="n">'+money(mb.total)+'</td></tr>'+
    '<tr><td>Pagó '+e(myName())+'</td><td class="n">'+money(mb.paidMe)+'</td></tr>'+
@@ -1502,12 +1540,13 @@ function vHogar(){
   if(!list.length)h+='<p class="note">Nada cargado este mes. Marcá movimientos como «Compartido» en la pestaña Movimientos, o agregá uno acá abajo.</p>';
   else h+='<table><tr><th>Fecha</th><th>Detalle</th><th>Pagó</th><th class="n">Total</th><th>Reparto</th><th></th></tr>'+list.map(function(it){
     var own=it.payer===H.uid,oth=own?o:H.uid;
-    if(it.type==='pago')return'<tr><td>'+e(it.d.slice(8)+'/'+it.d.slice(5,7))+'</td><td>'+e(it.desc)+'<span class="chip">pago</span></td><td>'+e(nameOf(it.payer))+'</td><td class="n">'+money(it.amt)+'</td><td></td><td>'+(own?'<button class="x hdel" data-id="'+e(it.id)+'">×</button>':'')+'</td></tr>';
+    if(it.type==='pago')return'<tr><td>'+e(it.d.slice(8)+'/'+it.d.slice(5,7))+'</td><td>'+e(it.desc)+'<span class="chip">pago</span></td><td>'+e(nameOf(it.payer))+'</td><td class="n">'+money(it.amt)+'</td><td></td><td>'+(o?'<button class="x hdel" data-id="'+e(it.id)+'" data-payer="'+e(it.payer)+'">×</button>':'')+'</td></tr>';
     return'<tr data-id="'+e(it.id)+'"><td>'+e(it.d.slice(8)+'/'+it.d.slice(5,7))+'</td><td>'+e(it.desc)+'<span class="chip">'+e(it.cat||'General')+'</span>'+(it.note?'<div class="note">'+e(it.note)+'</div>':'')+'</td><td>'+e(nameOf(it.payer))+'</td><td class="n">'+money(it.amt)+'</td>'+
-     '<td class="note">'+(own?'<input class="hsh" size="3" value="'+it.share+'">% mío':e(nameOf(it.payer))+' '+it.share+'% · '+e(nameOf(oth))+' '+(100-it.share)+'%')+'</td><td>'+(own?'<button class="x hdel" data-id="'+e(it.id)+'">×</button>':'')+'</td></tr>';
+     '<td class="note">'+(own?'<input class="hsh" size="3" value="'+it.share+'">% mío':e(nameOf(it.payer))+' '+it.share+'% · '+e(nameOf(oth))+' '+(100-it.share)+'%')+'</td><td>'+(o?'<button class="x hdel" data-id="'+e(it.id)+'" data-payer="'+e(it.payer)+'">×</button>':'')+'</td></tr>';
   }).join('')+'</table>';
-  h+='<p class="note">Cada uno puede editar o borrar solo lo que pagó él.</p></div>';
-  h+='<div class="card"><h2>Agregar un gasto compartido que pagaste vos</h2><div class="row"><input id="hdt" type="date" value="'+ui.month+'-01"><input id="hds" placeholder="Descripción"><input id="hmt" inputmode="decimal" placeholder="Total pagado" size="10"><select id="hct">'+cfg.cats.filter(function(c){return EXCL_NOSPEND.indexOf(c)<0}).map(function(c){return'<option>'+e(c)+'</option>'}).join('')+'</select><label class="note">mi parte <input id="hpc" size="3" value="50">%</label><button id="hadd" class="pri">Agregar</button></div><p class="note">Con 50% se reparte a mitades. Con 0% el gasto fue todo del otro (por ejemplo, le pagaste algo a '+e(on)+').</p></div>';
+  h+='<p class="note">Podés borrar cualquier movimiento (también los que figuran pagados por '+e(on)+', si ya corriste el SQL de permisos). El % solo se edita en lo que pagaste vos.</p></div>';
+  h+='<div class="card"><h2>Dejar el saldo en un valor</h2><div class="row"><span class="note">Saldo que tiene que dar hoy (positivo = '+e(on)+' te debe, negativo = le debés):</span><input id="stgt" inputmode="decimal" placeholder="ej. 27000" size="10"><button id="sfix"'+(o?'':' disabled')+'>Ajustar</button></div><p class="note">Hoy da '+(tot.n>=0?'+':'−')+money(Math.abs(tot.n))+'. El ajuste agrega un pago de «Ajuste de saldo» por la diferencia, para arrancar desde ahí. Podés borrarlo con la ×.</p></div>';
+  h+='<div class="card"><h2>Agregar un gasto compartido</h2><div class="row"><select id="hpay"><option value="me">Pagué yo</option><option value="other">Pagó '+e(on)+'</option></select><input id="hdt" type="date" value="'+ui.month+'-01"><input id="hds" placeholder="Descripción"><input id="hmt" inputmode="decimal" placeholder="Total pagado" size="10"><select id="hct">'+cfg.cats.filter(function(c){return EXCL_NOSPEND.indexOf(c)<0}).map(function(c){return'<option>'+e(c)+'</option>'}).join('')+'</select><label class="note">mi parte <input id="hpc" size="3" value="50">%</label><button id="hadd" class="pri">Agregar</button></div><p class="note">«Mi parte» es lo que te toca a vos, aunque lo haya pagado '+e(on)+'. Con 50% se reparte a mitades; con 0% fue todo del otro.</p></div>';
   h+='<div class="card"><h2>Importar historial</h2><p class="note">Cargá un archivo de historial (.json) con lo que pagaste vos. Se puede repetir sin duplicar. Cada uno importa el suyo.</p><div class="row"><input type="file" id="himp" accept=".json"></div></div>';
   v.innerHTML=h;
   $('#himp').addEventListener('change',function(){
@@ -1523,14 +1562,22 @@ function vHogar(){
   $('#hrefresh').addEventListener('click',function(){hogarLoad().then(function(){toast('Actualizado');vHogar()}).catch(function(){toast('No pude actualizar')})});
   $('#gadd').addEventListener('click',function(){
     var a=parseNum($('#gamt').value),d=$('#gdate').value;if(!a||a<=0||!d||!o){toast('Poné un importe y una fecha');return}
-    hogarUpsert({id:'g-'+uid(),d:d,desc:'Pago de '+myName()+' a '+on,amt:a,type:'pago'});toast('Pago registrado');ui.month=d.slice(0,7);vHogar();
+    var fr=$('#gdir').value==='other';
+    hogarUpsert({id:'g-'+uid(),d:d,desc:fr?'Pago de '+on+' a '+myName():'Pago de '+myName()+' a '+on,amt:a,share:50,type:'pago'},fr?o:H.uid);toast('Pago registrado');ui.month=d.slice(0,7);vHogar();
   });
   $('#hadd').addEventListener('click',function(){
     var d=$('#hdt').value,ds=$('#hds').value.trim(),a=parseNum($('#hmt').value),pc=parseNum($('#hpc').value);
     if(!d||!ds||!a||a<=0||pc==null||pc<0||pc>100){toast('Revisá fecha, descripción, importe y porcentaje (0 a 100)');return}
-    hogarUpsert({id:'h-'+uid(),d:d,desc:ds,amt:a,cat:$('#hct').value,share:pc,type:'gasto'});ui.month=d.slice(0,7);vHogar();
+    var po=$('#hpay').value==='other';
+    if(po&&!o){toast('Todavía no entró la otra persona al hogar');return}
+    hogarUpsert({id:'h-'+uid(),d:d,desc:ds,amt:a,cat:$('#hct').value,share:po?100-pc:pc,type:'gasto'},po?o:H.uid);ui.month=d.slice(0,7);vHogar();
   });
-  v.querySelectorAll('.hdel').forEach(function(b){b.addEventListener('click',function(){hogarRemove(b.dataset.id);vHogar()})});
+  $('#sfix').addEventListener('click',function(){
+    var tg=parseNum($('#stgt').value);if(tg==null||isNaN(tg)||!o){toast('Poné el saldo que tiene que dar');return}
+    var df=Math.round((tg-tot.n)*100)/100;if(Math.abs(df)<1){toast('Ya da ese saldo');return}
+    hogarUpsert({id:'adj-'+uid(),d:new Date().toISOString().slice(0,10),desc:'Ajuste de saldo (dejarlo en '+money(tg)+')',amt:Math.abs(df),share:50,type:'pago'},df>0?H.uid:o);
+    toast('Ajuste de '+money(Math.abs(df))+' agregado');vHogar()});
+  v.querySelectorAll('.hdel').forEach(function(b){b.addEventListener('click',function(){hogarRemove(b.dataset.id,b.dataset.payer||H.uid);vHogar()})});
   v.querySelectorAll('.hsh').forEach(function(i){i.addEventListener('change',function(){
     var id=i.closest('tr').dataset.id,pc=parseNum(i.value);
     if(pc==null||pc<0||pc>100){toast('El porcentaje va de 0 a 100');return}
