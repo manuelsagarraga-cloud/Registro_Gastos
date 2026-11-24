@@ -93,7 +93,10 @@ tr.cur td{background:var(--acc2)}tr[data-month]{cursor:pointer}tr.lk{cursor:poin
 input.bigin{font-size:22px;font-weight:650;width:100%;border:0;border-bottom:1px dashed var(--line);border-radius:0;padding:0;background:none}
 .yearnav{margin-bottom:10px}
 .seg3{display:flex;gap:0;align-items:center}.seg3 button{border-radius:0;padding:3px 9px;font-size:13px;margin-left:-1px}.seg3 button:first-child{border-radius:8px 0 0 8px}.seg3 button:last-of-type{border-radius:0 8px 8px 0}.seg3 button:not(:first-child):not(:last-of-type){border-radius:0}
-.seg3 button.on{background:var(--acc);color:#fff;border-color:var(--acc);position:relative}.seg3 input{margin-left:4px;width:52px;padding:3px 5px}.seg3 button{padding:3px 7px;font-size:12px}
+.seg3 button.on{background:var(--acc);color:#fff;border-color:var(--acc);position:relative}.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:12px;align-items:start}.plans .card{margin:0}@media(max-width:520px){.plans{grid-template-columns:1fr}}
+.plan .grid2{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.plan label.f input{font-size:14px;padding:4px 6px}
+details.pdet summary{cursor:pointer;color:var(--acc);font-size:14px;margin-top:8px}
+.seg3 input{margin-left:4px;width:52px;padding:3px 5px}.seg3 button{padding:3px 7px;font-size:12px}
 table.tt td,table.tt th{padding:6px 5px}table.tt td:nth-child(4){white-space:nowrap}
 tr.unm td{background:var(--warnbg)}
 </style>
@@ -432,7 +435,7 @@ var FIJOS=[
  {key:'rentPlan',cat:'Alquiler',ref:'alquiler',label:'Alquiler e impuestos',kw:''},
  {key:'expTierralta',cat:'Expensas Tierralta',ref:'tierralta',label:'Expensas Tierralta',kw:'expensas'},
  {key:'servDepto',cat:'Servicios depto',ref:'servicios',label:'Servicios del departamento',kw:''}];
-function shareOf(key){var p=cfg[key];return p&&p.share!=null?p.share:100}
+function shareOf(key){if(key==='rentPlan')return 50;var p=cfg[key];return p&&p.share!=null?p.share:100}
 function rentShare(){return shareOf('rentPlan')}
 function rentOn(k){return planAmt(cfg.rentPlan,k)!=null}
 function planHit(f,cat,desc){
@@ -775,18 +778,21 @@ function planCard(key,title,hint,opt){
   opt=opt||{};
   var p=cfg[key]||{amt:0,from:'',raises:[]},k0=ui.month;
   var rows=[];for(var i=0;i<18;i++){var m=shiftMonth(k0,i);rows.push({k:m,a:planAmt(cfg[key],m),r:planRaise(cfg[key],m)})}
-  var h='<div class="card" id="pc-'+key+'"><h2>'+title+'</h2><p class="note">'+hint+'</p><div class="grid2">'+
+  var nr=(p.raises||[]).length,cur=planAmt(cfg[key],curMonth()),nx=(p.raises||[]).filter(function(r){return r.m>curMonth()}).sort(function(a,b){return a.m<b.m?-1:1})[0],shr=key==='rentPlan'?50:(opt.share&&p.share!=null?p.share:null);
+  var h='<div class="card plan" id="pc-'+key+'"><div class="row" style="margin-bottom:4px"><h2 style="margin:0;flex:1">'+title+'</h2>'+(p.amt?'<b>'+money(p.amt)+'</b>':'')+'</div><p class="note" style="margin:0 0 8px">'+hint+(shr!=null&&shr<100&&p.amt?' · Tu parte: <b>'+money(p.amt*shr/100)+'</b>':'')+(nx?' · Próximo aumento: '+e(mshort(nx.m))+(nx.pct?' (+'+nx.pct+'%)':' (% a definir)'):'')+'</p><div class="grid2">'+
    '<label class="f">Monto mensual<input data-f="amt" inputmode="decimal" value="'+(p.amt||'')+'" placeholder="0"></label>'+
-   '<label class="f">Vigente desde<input data-f="from" type="month" value="'+(p.from||'')+'"></label>'+(opt.share?'<label class="f">Tu parte (%)<input data-f="share" inputmode="decimal" value="'+(p.share!=null?p.share:100)+'"></label>':'')+(opt.kw?'<label class="f">Ignorar en Splitwise y cuenta lo que diga (palabras separadas por coma)<input data-f="kw" value="'+e(p.kw||'')+'" placeholder="ej. expensas"></label>':'')+'</div>'+(opt.share&&p.amt?'<p class="note">'+(p.share!=null&&p.share<100?'Total '+money(p.amt)+' · tu parte '+money(p.amt*p.share/100)+' por mes.':'Hoy se cuenta el 100% como tuyo. Si ese monto es de los dos, poné 50.')+'</p>':'')+
+   '<label class="f">Vigente desde<input data-f="from" type="month" value="'+(p.from||'')+'"></label>'+(opt.share&&key!=='rentPlan'?'<label class="f">Tu parte (%)<input data-f="share" inputmode="decimal" value="'+(p.share!=null?p.share:100)+'"></label>':'')+(opt.kw?'<label class="f">Ignorar en Splitwise y cuenta lo que diga (palabras separadas por coma)<input data-f="kw" value="'+e(p.kw||'')+'" placeholder="ej. expensas"></label>':'')+'</div>'+
+   '<details class="pdet" data-k="'+key+'"'+(ui.po&&ui.po[key]?' open':'')+'><summary>Aumentos y proyección'+(nr?' ('+nr+' aumento'+(nr>1?'s':'')+')':'')+'</summary>'+
    '<h3>Meses de aumento</h3>'+
    ((p.raises||[]).length?'<table>'+(p.raises||[]).slice().sort(function(a,b){return a.m<b.m?-1:1}).map(function(r){return'<tr><td>'+e(mlabel(r.m))+'</td><td>'+(r.pct?'+'+r.pct+'%':'<span class="chip">% a definir</span>')+'</td><td><button class="x rdel" data-m="'+r.m+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no marcaste aumentos.</p>')+
    '<div class="row" style="margin-top:8px"><input type="month" data-n="m"><input data-n="pct" inputmode="decimal" placeholder="% (vacío si no sabés)" size="16"><button data-n="add">Agregar aumento</button></div>'+
    '<div class="row"><span class="note">O repetir:</span><input data-g="pct" inputmode="decimal" placeholder="%" size="4"><span class="note">cada</span><input data-g="every" inputmode="numeric" value="4" size="2"><span class="note">meses, desde</span><input type="month" data-g="from"><span class="note">hasta 24 meses</span><button data-g="go">Generar</button></div>'+
-   '<h3>Cómo queda</h3><div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Monto</th><th class="n">Ajustar este mes</th><th></th></tr>'+rows.map(function(r){var ov=p.over&&p.over[r.k]!=null;return'<tr><td>'+e(mshort(r.k))+'</td><td class="n">'+(r.a?money(r.a):'—')+(ov?'<span class="chip">ajustado</span>':'')+'</td><td class="n">'+(r.a?'<input class="ovr" data-m="'+r.k+'" size="9" inputmode="decimal" value="'+(ov?p.over[r.k]:'')+'" placeholder="igual">':'')+'</td><td>'+(r.r?'<span class="chip up">↑ '+(r.r.pct?r.r.pct+'%':'% a definir')+'</span>':'')+'</td></tr>'}).join('')+'</table></div></div>';
+   '<h3>Cómo queda</h3><div class="scroll"><table class="mt"><tr><th>Mes</th><th class="n">Monto</th><th class="n">Ajustar este mes</th><th></th></tr>'+rows.map(function(r){var ov=p.over&&p.over[r.k]!=null;return'<tr><td>'+e(mshort(r.k))+'</td><td class="n">'+(r.a?money(r.a):'—')+(ov?'<span class="chip">ajustado</span>':'')+'</td><td class="n">'+(r.a?'<input class="ovr" data-m="'+r.k+'" size="9" inputmode="decimal" value="'+(ov?p.over[r.k]:'')+'" placeholder="igual">':'')+'</td><td>'+(r.r?'<span class="chip up">↑ '+(r.r.pct?r.r.pct+'%':'% a definir')+'</span>':'')+'</td></tr>'}).join('')+'</table></div></details></div>';
   return h;
 }
 function bindPlan(v,key){
   var box=v.querySelector('#pc-'+key);
+  box.querySelector('details').addEventListener('toggle',function(){if(!ui.po)ui.po={};ui.po[key]=this.open});
   function P(){var fj=FIJOS.find(function(x){return x.key===key});if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[],share:fj?50:undefined,kw:fj?fj.kw:undefined};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
   box.querySelector('[data-f=amt]').addEventListener('change',function(){var p=P();p.amt=parseNum(this.value)||0;if(!p.from)p.from=curMonth();save('cfg');vPlan()});
   var shi=box.querySelector('[data-f=share]');if(shi)shi.addEventListener('change',function(){var p=P(),x=parseNum(this.value);if(x==null||x<0||x>100){toast('El porcentaje va de 0 a 100');return}p.share=x;save('cfg');vPlan()});
@@ -814,11 +820,12 @@ function bindPlan(v,key){
 }
 function vPlan(){
   var v=$('#view');
-  v.innerHTML='<p class="note">Los aumentos se aplican en cadena sobre el monto vigente. Si todavía no sabés el porcentaje, marcá el mes igual y dejalo vacío: se ve como «% a definir» y no cambia el monto.</p>'+
-   planCard('rentPlan','Alquiler e impuestos','Alquiler más impuestos, el total de los dos. Abajo definís qué parte es tuya (50% si se divide a mitades).',{share:1,kw:0})+
-   planCard('expTierralta','Expensas Tierralta','Expensas del lote en Tierralta. Se proyectan con los aumentos que marques y suman a tus gastos.',{share:1,kw:1})+
-   planCard('servDepto','Servicios del departamento','Servicios que se pagan junto con la expensa (luz, gas, agua, internet). Si un mes viene distinto, ajustalo en «Ajustar este mes».',{share:1,kw:1})+
-   planCard('incPlan','Ingresos (neto, en mano)','Tu ingreso fijo mensual y cada cuánto sube.');
+  v.innerHTML='<p class="note">Cada tarjeta se abre en «Aumentos y proyección». Si no sabés el %, marcá el mes igual y dejalo vacío: queda «% a definir» y no cambia el monto.</p><div class="plans">'+
+   planCard('rentPlan','Alquiler e impuestos','Total de los dos, 50 y 50 con Flor',{share:1,kw:0})+
+   planCard('expTierralta','Expensas Tierralta','Expensas del lote',{share:1,kw:1})+
+   planCard('servDepto','Servicios del departamento','Se pagan junto con la expensa',{share:1,kw:1})+
+   planCard('incPlan','Ingresos (neto)','Tu ingreso fijo mensual')+'</div>';
+  v.querySelector('.plans').insertAdjacentHTML('afterend','');
   ['rentPlan','expTierralta','servDepto','incPlan'].forEach(function(k){bindPlan(v,k)});
 }
 
