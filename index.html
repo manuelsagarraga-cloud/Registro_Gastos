@@ -702,24 +702,24 @@ function committedList(n){
   var out=[],c0=curMonth(),i;
   for(i=1;i<=n;i++){
     var m=shiftMonth(c0,i),s=monthSummary(m);
-    out.push({k:m,rent:s.rent,exp:s.exp,cu:s.cardCu,pun:s.puntual,inc:s.inc,tot:s.rent+s.exp+s.cardCu+s.puntual});
+    var sv=svcSum(m);out.push({k:m,rent:s.rent,exp:s.exp,svc:sv,cu:s.cardCu,pun:s.puntual,inc:s.inc,tot:s.rent+s.exp+sv+s.cardCu+s.puntual});
   }
   return out;
 }
-var CSEG=[['rent','Alquiler','var(--g1)'],['exp','Expensas y servicios','var(--g8)'],['cu','Cuotas de tarjeta','var(--g3)'],['pun','Puntuales','var(--g10)']];
+var CSEG=[['rent','Alquiler','var(--g1)'],['exp','Expensas y servicios','var(--g8)'],['svc','Servicios fijos','var(--g6)'],['cu','Cuotas de tarjeta','var(--g3)'],['pun','Puntuales','var(--g10)']];
 function committedCard(){
   var n=ui.commR||12,list=committedList(n);
   var hdr='<div class="card"><h2>Lo que ya tenés comprometido</h2><div class="seg3 rng">'+[6,12,24,36].map(function(x){return'<button data-commr="'+x+'" class="'+(x===n?'on':'')+'">'+(x<24?x+' meses':(x/12)+' años')+'</button>'}).join('')+'</div>';
   if(!list.some(function(x){return x.tot>0}))return hdr+'<p class="note">Todavía no hay alquiler, expensas ni cuotas cargados para los próximos meses.</p></div>';
   var mx=Math.max.apply(null,list.map(function(x){return x.tot}).concat([1]));
-  var h=hdr+'<p class="note" style="margin-top:8px">Solo lo seguro según tus planes: alquiler y expensas con sus aumentos cargados, cuotas de tarjeta ya financiadas y puntuales que cargaste. No incluye gastos del día a día ni promedios.</p><div class="chart small">'+list.map(function(x,ix){
+  var h=hdr+'<p class="note" style="margin-top:8px">Solo lo seguro según tus planes: alquiler, expensas, Ecogas, EPEC, AFIP e internet (al último monto que cargaste), con los aumentos que hayas cargado, cuotas de tarjeta ya financiadas y puntuales que cargaste. No incluye gastos del día a día ni promedios.</p><div class="chart small">'+list.map(function(x,ix){
     return'<div class="col'+(x.k===ui.month?' cur':'')+'" data-month="'+x.k+'"><div class="bw"><div class="stack">'+CSEG.map(function(g){var v=x[g[0]];return v>0?'<div class="seg" style="height:'+(v/mx*100)+'%;background:'+g[2]+'" title="'+mshort(x.k)+' · '+g[1]+': '+money(v)+'"></div>':''}).join('')+'</div></div><div class="lb">'+(n<=12||ix%3===0?mshort(x.k):'')+'</div></div>'}).join('')+'</div>'+
    '<div class="legend">'+CSEG.map(function(g){return'<span><i style="background:'+g[2]+'"></i>'+g[1]+'</span>'}).join('')+'</div>';
-  var yr={};list.forEach(function(x){var y=x.k.slice(0,4),a=yr[y]||(yr[y]={n:0,re:0,cu:0,tot:0,inc:0});a.n++;a.re+=x.rent+x.exp;a.cu+=x.cu;a.tot+=x.tot;a.inc+=x.inc});
-  h+='<table class="mt gh"><tr><th>Año</th><th class="n">Alq. y exp.</th><th class="n">Cuotas</th><th class="n">Compr.</th><th class="n">Ingreso plan</th></tr>'+
+  var yr={};list.forEach(function(x){var y=x.k.slice(0,4),a=yr[y]||(yr[y]={n:0,re:0,cu:0,tot:0,inc:0});a.n++;a.re+=x.rent+x.exp+x.svc;a.cu+=x.cu;a.tot+=x.tot;a.inc+=x.inc});
+  h+='<table class="mt gh"><tr><th>Año</th><th class="n">Fijos</th><th class="n">Cuotas</th><th class="n">Compr.</th><th class="n">Ingreso plan</th></tr>'+
    Object.keys(yr).sort().map(function(y){var a=yr[y];return'<tr><td>'+y+'<div class="note">'+a.n+' meses</div></td><td class="n">'+(a.re?money(a.re):'—')+'</td><td class="n">'+(a.cu?money(a.cu):'—')+'</td><td class="n"><b>'+money(a.tot)+'</b></td><td class="n">'+(a.inc?money(a.inc):'—')+'</td></tr>'}).join('')+'</table>';
-  if(n<=12)h+='<table class="mt gh"><tr><th>Mes</th><th class="n">Alquiler y exp.</th><th class="n">Cuotas</th><th class="n">Comprometido</th></tr>'+
-   list.map(function(x){return'<tr data-month="'+x.k+'"><td>'+e(mshort(x.k))+'</td><td class="n">'+(x.rent+x.exp?money(x.rent+x.exp):'—')+'</td><td class="n">'+(x.cu?money(x.cu):'—')+'</td><td class="n"><b>'+money(x.tot)+'</b></td></tr>'}).join('')+'</table>';
+  if(n<=12)h+='<table class="mt gh"><tr><th>Mes</th><th class="n">Fijos</th><th class="n">Cuotas</th><th class="n">Comprometido</th></tr>'+
+   list.map(function(x){return'<tr data-month="'+x.k+'"><td>'+e(mshort(x.k))+'</td><td class="n">'+(x.rent+x.exp+x.svc?money(x.rent+x.exp+x.svc):'—')+'</td><td class="n">'+(x.cu?money(x.cu):'—')+'</td><td class="n"><b>'+money(x.tot)+'</b></td></tr>'}).join('')+'</table>';
   h+='<p class="note">Cuando una cuota termina, ese monto baja del mes siguiente. «Ingreso plan» es el que cargaste en Alquiler e ingresos, con sus aumentos.</p></div>';
   return h;
 }
@@ -740,13 +740,13 @@ function vMes(){
   var v=$('#view'),k=ui.month,s=monthSummary(k),mg=monthGroups(k),fut=!hasReal(k);
   var needSetup=!cfg.incPlan||!cfg.rentPlan,h='';
   if(needSetup)h+='<div class="alert">Para ver cuánto sobra cada mes cargá tu <b>ingreso</b> y tu <b>alquiler</b> con sus aumentos. <button class="lnk" data-go="plan">Cargarlos</button></div>';
-  var comm=s.rent+s.exp+s.cardCu+s.puntual;
+  var comm=s.rent+s.exp+svcSum(k)+s.cardCu+s.puntual;
   var pp=pendingPay();
   if(pp.length)h+='<div class="alert"><b>Falta impactar quién pagó</b> (no entra al saldo hasta que lo confirmes):<br>'+pp.map(function(x){return'<button class="lnk" data-month="'+x.m+'">'+e(mshort(x.m))+'</button>: '+x.it.map(e).join(', ')}).join('<br>')+'</div>';
   if(fut){
     h+='<div class="kpis">'+
      '<div class="kpi"><div class="l">Ingreso</div><div class="v">'+(s.inc?money(s.inc):'—')+'</div><div class="s">'+(s.incRaise?'<span class="chip">aumento '+(s.incRaise.pct?s.incRaise.pct+'%':'% a definir')+'</span>':'Según tu plan de ingresos')+'</div></div>'+
-     '<div class="kpi"><div class="l">Ya comprometido</div><div class="v">'+money(comm)+'</div><div class="s">Alquiler, expensas y cuotas</div></div>'+
+     '<div class="kpi"><div class="l">Ya comprometido</div><div class="v">'+money(comm)+'</div><div class="s">Alquiler, expensas, servicios y cuotas</div></div>'+
      '<div class="kpi"><div class="l">Queda antes del día a día</div><div class="v '+(s.inc?(s.inc-comm>=0?'good':'badc'):'')+'">'+(s.inc?money(s.inc-comm):'—')+'</div><div class="s">Ingreso − comprometido</div></div>'+
      '<div class="kpi"><div class="l">Ahorro registrado</div><div class="v">'+usd(savOf(k,'ahorro'))+'</div><div class="s"><button class="lnk" data-go="ahorro">Registrar</button></div></div></div>';
   }else{
@@ -965,7 +965,7 @@ function planCard(key,title,hint,opt){
 function bindPlan(v,key){
   var box=v.querySelector('#pc-'+key);
   box.querySelector('details').addEventListener('toggle',function(){if(!ui.po)ui.po={};ui.po[key]=this.open});
-  function P(){var fj=FIJOS.find(function(x){return x.key===key});if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[],share:fj?50:undefined,kw:fj?fj.kw:undefined};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
+  function P(){var fj=FIJOS.find(function(x){return x.key===key})||SVC.find(function(x){return x.key===key});if(!cfg[key])cfg[key]={amt:0,from:curMonth(),raises:[],share:fj?50:undefined,kw:fj?fj.kw:undefined};if(!cfg[key].raises)cfg[key].raises=[];return cfg[key]}
   box.querySelector('[data-f=amt]').addEventListener('change',function(){var p=P();p.amt=parseNum(this.value)||0;if(!p.from)p.from=curMonth();savePlan(key);vPlan()});
   var shi=box.querySelector('[data-f=share]');if(shi)shi.addEventListener('change',function(){var p=P(),x=parseNum(this.value);if(x==null||x<0||x>100){toast('El porcentaje va de 0 a 100');return}p.share=x;savePlan(key);vPlan()});
   var kwi=box.querySelector('[data-f=kw]');if(kwi)kwi.addEventListener('change',function(){var p=P();p.kw=this.value.trim();savePlan(key);vPlan()});
@@ -996,9 +996,18 @@ function vPlan(){
    planCard('rentPlan','Alquiler e impuestos','Total de los dos, 50 y 50 con Flor',{share:1,kw:0})+
    planCard('expTierralta','Expensas Tierralta','Expensas del lote',{share:1,kw:1})+
    planCard('servDepto','Servicios del departamento','Se pagan junto con la expensa',{share:1,kw:1})+
+   '<h3 style="margin:14px 2px 4px">Servicios fijos (solo para lo que viene)</h3><p class="note" style="margin-top:0">Se suman a «Lo que ya tenés comprometido». No cambian los gastos reales de cada mes, que siguen saliendo de tu tarjeta, cuenta y Splitwise. Poné el último importe que pagás.</p>'+
+   SVC.map(function(x){return planCard(x.key,x.label,'Mensual · compartido con '+e(fname()),{share:1,kw:0})}).join('')+
    planCard('incPlan','Ingresos (neto)','Tu ingreso fijo mensual')+'</div>';
   v.querySelector('.plans').insertAdjacentHTML('afterend','');
-  ['rentPlan','expTierralta','servDepto','incPlan'].forEach(function(k){bindPlan(v,k)});
+  ['rentPlan','expTierralta','servDepto','incPlan'].concat(SVC.map(function(x){return x.key})).forEach(function(k){bindPlan(v,k)});
+  SVC.forEach(function(x){
+    var c=v.querySelector('#pc-'+x.key),l=svcLast(x);if(!c||!l)return;
+    var cur=cfg[x.key]&&cfg[x.key].amt;
+    if(cur&&Math.abs(cur-l.amt)<1)return;
+    c.insertAdjacentHTML('afterbegin','<div class="note" style="margin-bottom:6px">Último cargo visto: <b>'+money(l.amt)+'</b> ('+e(l.desc)+', '+e(String(l.d).slice(0,10))+') <button class="lnk svcuse">Usar este monto</button></div>');
+    c.querySelector('.svcuse').addEventListener('click',function(){var i=c.querySelector('[data-f=amt]');i.value=String(Math.round(l.amt));i.dispatchEvent(new Event('change',{bubbles:true}))});
+  });
   var fx=cfg.fx||0,rows=[],c0=curMonth();
   for(var i=0;i<12;i++){var m=shiftMonth(c0,i),s=monthSummary(m),fix=s.rent+s.exp+s.cardCu+(s.recM||0)+s.puntual,vr=s.total-fix,sv=fx?planOf(m.slice(0,4),m)*fx:0,free=s.inc-s.total-sv;rows.push({m:m,s:s,fix:fix,vr:vr,sv:sv,free:free})}
   var nrec=(cfg.recurring||[]).length;
@@ -1544,7 +1553,24 @@ function rlist(){
 /* ---------- Hogar (gastos en pareja) ---------- */
 function myName(){return cfg.myName||'Manuel'}
 var H={ready:false,hid:null,uid:null,name:'',code:'',members:{},items:{},synced:{},t:0,plan:{},planOK:false};
-var SHARED=['rentPlan','expTierralta','servDepto'];
+var SVC=[
+ {key:'ecogas',label:'Ecogas',kw:'distribuidora de gas,ecogas,gas del centro',ex:''},
+ {key:'epec',label:'EPEC',kw:'epec',ex:''},
+ {key:'afip',label:'AFIP',kw:'afip',ex:''},
+ {key:'puio',label:'Internet Puio',kw:'puio',ex:''},
+ {key:'netCasa',label:'Internet casa',kw:'internet',ex:'puio'}];
+var SHARED=['rentPlan','expTierralta','servDepto'].concat(SVC.map(function(x){return x.key}));
+function svcMine(key,k){var a=planAmt(cfg[key],k);return a==null?0:a*shareOf(key)/100}
+function svcSum(k){return SVC.reduce(function(a,x){return a+svcMine(x.key,k)},0)}
+/* Último cargo visto de un servicio (tarjeta, cuenta o Splitwise), para sugerir el monto */
+function svcLast(sv){
+  var kws=sv.kw.split(',').map(nk).filter(Boolean),ex=sv.ex?nk(sv.ex):'',best=null;
+  function hit(desc){var n=nk(desc||'');if(ex&&n.indexOf(ex)>=0)return false;return kws.some(function(w){return n.indexOf(w)>=0})}
+  function take(d,amt,desc){if(!amt||amt<=0)return;if(!best||d>best.d)best={d:d,amt:amt,desc:desc}}
+  Object.keys(months).forEach(function(m){(months[m]||[]).forEach(function(t){if(t.amt>0&&hit(t.desc))take(t.od||t.d||m+'-01',t.amt,t.desc)})});
+  if(H.ready)Object.keys(H.items).forEach(function(m){(H.items[m]||[]).forEach(function(it){if(it.type!=='pago'&&hit(it.desc))take(it.d||m+'-01',it.amt,it.desc)})});
+  return best;
+}
 function hogarOther(){var ids=Object.keys(H.members).filter(function(u){return u!==H.uid});return ids.length?ids[0]:null}
 function nameOf(u){return u===H.uid?myName():(H.members[u]||'La otra persona')}
 function itemRow(it){return{hogar_id:H.hid,payer:it.payer||H.uid,id:it.id,fecha:it.d,descripcion:it.desc,importe:it.amt,categoria:it.cat||null,nota:it.note||null,share:it.share==null?50:it.share,tipo:it.type||'gasto',ref:it.ref||null}}
@@ -1575,7 +1601,7 @@ function planCore(p){var o={amt:p.amt||0,from:p.from||'',raises:p.raises||[]};if
 function planSync(){
   var dirty=false,push=false;
   SHARED.forEach(function(key){
-    var sp=H.plan[key],lp=cfg[key],fj=FIJOS.find(function(x){return x.key===key});
+    var sp=H.plan[key],lp=cfg[key],fj=FIJOS.find(function(x){return x.key===key})||SVC.find(function(x){return x.key===key});
     if(sp&&sp.amt){
       if(!lp)lp=cfg[key]={share:key==='rentPlan'?undefined:50,kw:fj?fj.kw:undefined};
       var a=JSON.stringify(planCore(lp)),b=JSON.stringify(planCore(sp));
