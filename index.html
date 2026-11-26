@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Mis gastos al detalle</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f6b5c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gastos">
 <style>
 :root{--bg:#f6f5f1;--card:#fff;--ink:#1d2320;--mut:#6b746f;--line:#e3e1da;--acc:#0f6b5c;--acc2:#e8f2ef;--warn:#b4531a;--warnbg:#fbeee3;--bad:#b3261e;--ok:#1f7a4d}
 @media(prefers-color-scheme:dark){:root{--bg:#141716;--card:#1d2220;--ink:#e9ece9;--mut:#9aa4a0;--line:#2d3431;--acc:#4fb9a5;--acc2:#1b2d29;--warn:#f0a066;--warnbg:#33261b;--bad:#f2867f;--ok:#6fcf9b}}
@@ -109,9 +115,27 @@ tr.unm td{background:var(--warnbg)}
 .rk-b{height:6px;border-radius:3px;background:rgba(127,127,127,.15);overflow:hidden}.rk-b span{display:block;height:100%;border-radius:3px}
 table.gh td:first-child{white-space:normal;width:44%}.pbtn{display:flex;flex-direction:column;gap:4px;align-items:stretch}.pbtn button{white-space:normal}
 table.gh{width:100%;font-size:13px;margin-top:8px}table.gh th,table.gh td{padding:5px 4px}table.gh tr[data-month]{cursor:pointer}
+
+#fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:30;border-radius:28px;padding:13px 20px;font-size:16px;font-weight:600;background:var(--acc);color:#fff;border:0;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#qa{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center}
+#qa[hidden]{display:none}
+#qa .sheet{background:var(--card);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+#qa .sheet h2{margin:0 0 10px}#qa .f2{display:flex;flex-direction:column;gap:3px;margin-bottom:10px;font-size:13px;color:var(--mut)}
+#qa input,#qa select{font-size:17px;padding:10px}#qa .amt{font-size:26px;font-weight:600}
+#qa .pc{display:flex;gap:6px;align-items:center}#qa .pc button{flex:1;padding:9px 4px}#qa .pc button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#qa .acts{display:flex;gap:8px;margin-top:8px}#qa .acts button{flex:1;padding:12px;font-size:16px}
 </style>
 </head>
 <body>
+<button id="fab" hidden>+ Gasto</button>
+<div id="qa" hidden><div class="sheet"><h2>Cargar un gasto del hogar</h2>
+<div class="pc" id="qpay"><button data-w="me" class="on">Pagué yo</button><button data-w="other" id="qother">Pagó la otra persona</button></div>
+<label class="f2" style="margin-top:10px">Importe<input id="qmt" class="amt" inputmode="decimal" placeholder="0"></label>
+<label class="f2">Qué fue<input id="qds" placeholder="ej. verdulería"></label>
+<label class="f2">Categoría<select id="qct"></select></label>
+<div class="f2">Mi parte (lo que me toca a mí)<div class="pc" id="qpc"><button data-p="50" class="on">50%</button><button data-p="100">100% (solo mío)</button><button data-p="0">0% (todo de ella)</button></div><input id="qpo" inputmode="decimal" placeholder="otro %" size="4"></div>
+<label class="f2">Fecha<input id="qdt" type="date"></label>
+<div class="acts"><button id="qcancel">Cancelar</button><button id="qsave" class="pri">Guardar</button></div></div></div>
 <div id="auth" hidden></div>
 <div class="app" id="app">
 <header>
@@ -411,6 +435,7 @@ function prevMonths(k,n){
 /* ---------- navegación ---------- */
 function setTab(t){ui.tab=t;render()}
 function render(){
+  fabUpdate();
   $('#mlabel').textContent=mlabel(ui.month);
   document.querySelectorAll('#tabs button').forEach(function(b){b.classList.toggle('on',b.dataset.tab===ui.tab)});
   ({mes:vMes,tarjetas:vTarjetas,vida:vVida,plan:vPlan,ahorro:vAhorro,mov:vMov,hogar:vHogar,imp:vImp,cfg:vCfg})[ui.tab]();
@@ -1461,6 +1486,36 @@ function impArea(){
 document.addEventListener('input',function(ev){if(ev.target.id==='itext')ui.imp.text=ev.target.value});
 
 /* ---------- Presupuesto y ahorro ---------- */
+
+/* ---------- carga rápida de gastos del hogar (celular) ---------- */
+function fabUpdate(){var f=$('#fab');if(f)f.hidden=!(H.ready&&started)}
+function qaOpen(){
+  var o=hogarOther();
+  $('#qother').textContent='Pagó '+(o?H.members[o]:'la otra persona');
+  $('#qct').innerHTML=cfg.cats.filter(function(c){return EXCL_NOSPEND.indexOf(c)<0}).map(function(c){return'<option>'+e(c)+'</option>'}).join('');
+  $('#qdt').value=new Date().toISOString().slice(0,10);$('#qmt').value='';$('#qds').value='';$('#qpo').value='';
+  [].forEach.call(document.querySelectorAll('#qpay button'),function(b){b.classList.toggle('on',b.dataset.w==='me')});
+  [].forEach.call(document.querySelectorAll('#qpc button'),function(b){b.classList.toggle('on',b.dataset.p==='50')});
+  $('#qa').hidden=false;setTimeout(function(){$('#qmt').focus()},50);
+}
+function qaInit(){
+  $('#fab').addEventListener('click',qaOpen);
+  $('#qcancel').addEventListener('click',function(){$('#qa').hidden=true});
+  $('#qa').addEventListener('click',function(ev){if(ev.target===$('#qa'))$('#qa').hidden=true});
+  [].forEach.call(document.querySelectorAll('#qpay button'),function(b){b.addEventListener('click',function(){[].forEach.call(document.querySelectorAll('#qpay button'),function(x){x.classList.toggle('on',x===b)})})});
+  [].forEach.call(document.querySelectorAll('#qpc button'),function(b){b.addEventListener('click',function(){$('#qpo').value='';[].forEach.call(document.querySelectorAll('#qpc button'),function(x){x.classList.toggle('on',x===b)})})});
+  $('#qpo').addEventListener('input',function(){[].forEach.call(document.querySelectorAll('#qpc button'),function(x){x.classList.remove('on')})});
+  $('#qsave').addEventListener('click',function(){
+    var a=parseNum($('#qmt').value),ds=$('#qds').value.trim(),d=$('#qdt').value,o=hogarOther();
+    var on=document.querySelector('#qpc button.on'),pc=$('#qpo').value.trim()!==''?parseNum($('#qpo').value):(on?+on.dataset.p:50);
+    var po=document.querySelector('#qpay button.on').dataset.w==='other';
+    if(!a||a<=0||!ds||!d||pc==null||pc<0||pc>100){toast('Poné importe, qué fue y el porcentaje (0 a 100)');return}
+    if(po&&!o){toast('Todavía no entró la otra persona al hogar');return}
+    hogarUpsert({id:'h-'+uid(),d:d,desc:ds,amt:a,cat:$('#qct').value,share:po?100-pc:pc,type:'gasto'},po?o:H.uid);
+    $('#qa').hidden=true;toast('Cargado: '+money(a)+' · entra al saldo del Hogar');render();
+  });
+}
+
 /* ---------- Reglas y datos ---------- */
 function vCfg(){
   var v=$('#view');
@@ -1741,6 +1796,7 @@ function vHogar(){
 }
 
 /* ---------- arranque ---------- */
+qaInit();
 boot();
 })();
 </script>
