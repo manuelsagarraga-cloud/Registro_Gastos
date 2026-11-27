@@ -758,7 +758,7 @@ function vMes(){
     h+='<div class="card"><h2>En qué se fue la plata en '+e(mshort(k))+' '+unfinished(k)+'</h2>'+groupRank(mg)+
      '<p class="note">Tu parte, no el total de la tarjeta. Lo que no tiene categoría se agrupó por palabras de la descripción (super, nafta, farmacia…); el resto queda en «Sin clasificar».</p></div>';
   }
-  h+=committedCard();
+  h+=committedCard()+quitCard();
   h+='<div class="card"><h2>Historial por grupo</h2>'+grpHistory(fut?curMonth():k)+'<p class="note">Solo gastos ya cargados. Tocá una barra para ir a ese mes.</p></div>';
   if(!fut){
     h+='<div class="card"><h2>Detalle de '+e(mlabel(k))+'</h2><table class="calc">'+
@@ -784,6 +784,8 @@ function vMes(){
   h+='<div class="card"><h2>Gastos futuros puntuales</h2><div class="row"><input id="pname" placeholder="Qué es (ej. seguro anual)"><input id="pamt" inputmode="decimal" placeholder="Importe" size="10"><label class="note"><input type="checkbox" id="prec"> se repite todos los meses</label><button id="padd">Agregar a '+e(mshort(k))+'</button></div><div id="plist"></div><p class="note">Solo para lo que no está en tus resúmenes: anuales, compras grandes, viajes. Entra en «Lo que ya tenés comprometido».</p></div>';
   v.innerHTML=h;
   bindChart(v);bindPagos(v,k);
+  [['qtDaily','daily'],['qtSave','save']].forEach(function(p){var i=$('#'+p[0]);if(i)i.addEventListener('change',function(){var x=parseNum(this.value);cfg.quit=cfg.quit||{};cfg.quit[p[1]]=x>0?x:0;save('cfg');vMes()})});
+  var qu=$('#qtUse');if(qu)qu.addEventListener('click',function(){cfg.quit=cfg.quit||{};cfg.quit.daily=+qu.dataset.v;save('cfg');vMes()});
   v.querySelectorAll('[data-commr]').forEach(function(b){b.addEventListener('click',function(){ui.commR=+b.dataset.commr;vMes()})});
   v.querySelectorAll('tr[data-month]').forEach(function(r){r.addEventListener('click',function(){ui.month=r.dataset.month;render()})});
   var sg=$('#sumgen');if(sg)sg.addEventListener('change',function(){cfg.sumGeneral=this.checked;save('cfg');vMes()});
@@ -1000,9 +1002,9 @@ function vPlan(){
    SVC.map(function(x){return planCard(x.key,x.label,'Mensual · compartido con '+e(fname()),{share:1,kw:0})}).join('')+
    planCard('incPlan','Ingresos (neto)','Tu ingreso fijo mensual')+
    '<div class="card" id="xinc"><h2>Otros ingresos (no fijos)</h2><p class="note" style="margin-top:0">Un segundo ingreso que no cobrás siempre: un trabajo extra, un bono, un alquiler que cobrás, lo que sea. Entra en «Ingreso» y en «Sobra» solo en los meses que marques.</p>'+
-   ((cfg.extraInc||[]).length?'<table>'+(cfg.extraInc||[]).slice().sort(function(a,b){return a.month<b.month?-1:1}).map(function(x){return'<tr><td>'+e(x.name)+'<div class="note">'+(x.rep?'Todos los meses desde '+e(mlabel(x.month))+(x.until?' hasta '+e(mlabel(x.until)):' (sin fecha de fin)'):'Solo '+e(mlabel(x.month)))+'</div></td><td class="n">'+money(x.amt)+'</td><td><button class="x xdel" data-id="'+e(x.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no cargaste ninguno.</p>')+
+   ((cfg.extraInc||[]).length?'<table>'+(cfg.extraInc||[]).slice().sort(function(a,b){return a.month<b.month?-1:1}).map(function(x){return'<tr><td>'+e(x.name)+(x.job2?' <span class="chip">2º trabajo</span>':'')+'<div class="note">'+(x.rep?'Todos los meses desde '+e(mlabel(x.month))+(x.until?' hasta '+e(mlabel(x.until)):' (sin fecha de fin)'):'Solo '+e(mlabel(x.month)))+'</div></td><td class="n">'+money(x.amt)+'</td><td><button class="x xdel" data-id="'+e(x.id)+'">×</button></td></tr>'}).join('')+'</table>':'<p class="note">Todavía no cargaste ninguno.</p>')+
    '<div class="row" style="margin-top:8px"><input id="xname" placeholder="Qué es (ej. trabajo extra)"><input id="xamt" inputmode="decimal" placeholder="Importe neto" size="12"><input id="xmonth" type="month" value="'+ui.month+'"></div>'+
-   '<div class="row"><label class="note"><input type="checkbox" id="xrep"> se repite todos los meses</label><span class="note">hasta</span><input id="xuntil" type="month" disabled><button id="xadd" class="pri">Agregar ingreso</button></div></div></div>';
+   '<div class="row"><label class="note"><input type="checkbox" id="xj2"> es mi segundo trabajo (quiero ver cuándo dejarlo)</label></div><div class="row"><label class="note"><input type="checkbox" id="xrep"> se repite todos los meses</label><span class="note">hasta</span><input id="xuntil" type="month" disabled><button id="xadd" class="pri">Agregar ingreso</button></div></div></div>';
   v.querySelector('.plans').insertAdjacentHTML('afterend','');
   $('#xrep').addEventListener('change',function(){$('#xuntil').disabled=!this.checked;if(!this.checked)$('#xuntil').value=''});
   $('#xadd').addEventListener('click',function(){
@@ -1010,7 +1012,7 @@ function vPlan(){
     if(!n||!a||a<=0||!m){toast('Poné qué es, el importe y el mes');return}
     if(rp&&u&&u<m){toast('«Hasta» no puede ser anterior al mes de inicio');return}
     if(!cfg.extraInc)cfg.extraInc=[];
-    cfg.extraInc.push({id:uid(),name:n,amt:a,month:m,rep:rp,until:rp&&u?u:''});save('cfg');vPlan();toast('Ingreso agregado');
+    cfg.extraInc.push({id:uid(),name:n,amt:a,month:m,rep:rp,until:rp&&u?u:'',job2:$('#xj2').checked});save('cfg');vPlan();toast('Ingreso agregado');
   });
   [].forEach.call(v.querySelectorAll('.xdel'),function(b){b.addEventListener('click',function(){cfg.extraInc=(cfg.extraInc||[]).filter(function(x){return x.id!==b.dataset.id});save('cfg');vPlan()})});
   ['rentPlan','expTierralta','servDepto','incPlan'].concat(SVC.map(function(x){return x.key})).forEach(function(k){bindPlan(v,k)});
@@ -1574,8 +1576,36 @@ var SVC=[
  {key:'netCasa',label:'Internet casa',kw:'internet',ex:'puio'}];
 var SHARED=['rentPlan','expTierralta','servDepto'].concat(SVC.map(function(x){return x.key}));
 /* Ingresos extra (no fijos): puntuales o con repetición acotada */
-function extraIncFor(k){return (cfg.extraInc||[]).reduce(function(a,x){
+function extraIncFor(k,only){return (cfg.extraInc||[]).reduce(function(a,x){
+  if(only==='job2'&&!x.job2)return a;if(only==='fixed'&&x.job2)return a;
   var on=x.rep?(k>=x.month&&(!x.until||k<=x.until)):k===x.month;return a+(on?x.amt:0)},0)}
+function incNoJob2(k){return (planAmt(cfg.incPlan,k)||0)+extraIncFor(k,'fixed')}
+/* ¿Cuándo se puede dejar el segundo trabajo? Solo cuentas con tus datos: ingreso sin el 2º trabajo − comprometido − el día a día que vos definís */
+function dailyRef(){
+  var c0=curMonth(),ms=[],i,m;
+  for(i=1;i<=6&&ms.length<3;i++){m=shiftMonth(c0,-i);if(hasReal(m))ms.push(m)}
+  if(!ms.length)return null;
+  var avg=ms.reduce(function(a,x){var s=monthSummary(x);return a+s.cardCorr+s.cuenta+s.vida},0)/ms.length;
+  return{avg:Math.max(0,Math.round(avg-svcSum(c0))),n:ms.length};
+}
+function quitCard(){
+  if(!(cfg.extraInc||[]).some(function(x){return x.job2}))return'';
+  var q=cfg.quit||{},daily=q.daily||0,sav=q.save||0,n=ui.commR||12,ref=dailyRef(),c0=curMonth(),rows=[],i;
+  for(i=1;i<=n;i++){
+    var m=shiftMonth(c0,i),sm=monthSummary(m),inc=incNoJob2(m),j2=extraIncFor(m,'job2'),svc=svcSum(m);
+    var comm=sm.rent+sm.exp+svc+sm.cardCu+sm.puntual,left=inc-comm-daily-sav;
+    rows.push({k:m,inc:inc,j2:j2,comm:comm,left:left});
+  }
+  var first=null;for(i=rows.length-1;i>=0;i--){if(rows[i].left>=0)first=rows[i];else break}
+  var h='<div class="card"><h2>¿Cuándo podés dejar el segundo trabajo?</h2><p class="note" style="margin-top:0">Cuenta cada mes: ingreso <b>sin</b> el 2º trabajo − lo comprometido − el gasto del día a día que vos pongas − el ahorro que querés sostener. Si da positivo, ese mes alcanza sin él.</p>'+
+   '<div class="row"><label class="f">Día a día por mes<input id="qtDaily" inputmode="decimal" value="'+(daily||'')+'" placeholder="ej. 900000"></label><label class="f">Ahorro por mes<input id="qtSave" inputmode="decimal" value="'+(sav||'')+'" placeholder="ej. 700000"></label></div>'+
+   (ref?'<p class="note">Referencia real: en tus últimos '+ref.n+' meses cerrados gastaste unos <b>'+money(ref.avg)+'</b> por mes en el día a día (tarjeta, cuenta y Splitwise, sin los servicios fijos que ya contás). <button class="lnk" id="qtUse" data-v="'+ref.avg+'">Usar este número</button></p>':'')+
+   (!daily?'<p class="note">Sin un día a día cargado, la cuenta solo descuenta lo comprometido y va a dar más plata de la que realmente tenés.</p>':'');
+  if(first)h+='<div class="kpis"><div class="kpi" style="grid-column:1/-1"><div class="l">Sin el 2º trabajo alcanza desde</div><div class="v good">'+e(mlabel(first.k))+'</div><div class="s">y se mantiene en todos los meses que ves abajo</div></div></div>';
+  else{var best=rows.reduce(function(a,r){return r.left>a.left?r:a},rows[0]);h+='<div class="alert">En los próximos '+n+' meses <b>no alcanza</b> sin el 2º trabajo. El mejor mes es '+e(mlabel(best.k))+' y todavía faltan '+money(-best.left)+'.</div>'}
+  h+='<table class="mt gh"><tr><th>Mes</th><th class="n">Sin 2º trab.</th><th class="n">Comprom.</th><th class="n">Queda</th></tr>'+rows.map(function(r){return'<tr data-month="'+r.k+'"><td>'+e(mshort(r.k))+(r.j2?'<div class="note">2º trab. '+money(r.j2)+'</div>':'')+'</td><td class="n">'+money(r.inc)+'</td><td class="n">'+money(r.comm)+'</td><td class="n '+(r.left>=0?'good':'badc')+'"><b>'+money(r.left)+'</b></td></tr>'}).join('')+'</table><p class="note">Usa los aumentos de ingreso y de alquiler que cargaste. El 2º trabajo se marca al cargarlo en «Otros ingresos».</p></div>';
+  return h;
+}
 function svcMine(key,k){var a=planAmt(cfg[key],k);return a==null?0:a*shareOf(key)/100}
 function svcSum(k){return SVC.reduce(function(a,x){return a+svcMine(x.key,k)},0)}
 /* Último cargo visto de un servicio (tarjeta, cuenta o Splitwise), para sugerir el monto */
