@@ -137,6 +137,7 @@ details.sec>summary .note{font-weight:400;font-size:12px}
 .lgs{margin-top:10px}.lg{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-size:14px}.lg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:7px}
 .minis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:10px}.mini{text-align:center;cursor:pointer}.mini .mt1{font-weight:600;font-size:13px;margin-top:4px}
 details.fold{margin:8px 0}details.fold>summary{cursor:pointer;font-size:14px;color:var(--acc,#0f6b5c)}
+.pfx{border-bottom:1px solid rgba(127,127,127,.18);padding:10px 0}.pfx-t .n{white-space:nowrap}.pfx-t{display:flex;justify-content:space-between;gap:10px}.pfx-b{margin-top:8px;display:flex;flex-direction:column;gap:8px}.pfx-b .f{font-size:12px}.pfx-b input{width:100%;font-size:16px}
 </style>
 </head>
 <body>
@@ -483,6 +484,7 @@ var FIJOS=[
  {key:'rentPlan',cat:'Alquiler',ref:'alquiler',label:'Alquiler e impuestos',kw:''},
  {key:'expTierralta',cat:'Expensas Tierralta',ref:'tierralta',label:'Expensas Tierralta',kw:'expensas'},
  {key:'servDepto',cat:'Servicios depto',ref:'servicios',label:'Servicios del departamento',kw:''}];
+function payables(){return FIJOS.concat(SVC.map(function(x){return{key:x.key,cat:'Servicios',ref:'servicios',label:x.label,kw:x.kw,svc:true}}))}
 function shareOf(key){if(key==='rentPlan')return 50;var p=cfg[key];return p&&p.share!=null?p.share:100}
 function rentShare(){return shareOf('rentPlan')}
 function rentOn(k){return planAmt(cfg.rentPlan,k)!=null}
@@ -612,12 +614,14 @@ function fijoStatus(f,k){
   var arr=H.items[k]||[],id='fijo-'+f.key+'-'+k;
   var a=arr.find(function(it){return it.id===id&&it.payer===H.uid});if(a)return{by:'me',it:a};
   var b=arr.find(function(it){return it.id===id&&it.payer!==H.uid});if(b)return{by:'other',it:b};
+  if(f.svc)return null;
   var c=arr.find(function(it){return it.type!=='pago'&&it.id.indexOf('fijo-')!==0&&planHit(f,it.cat,it.desc)});
   if(c)return{by:'splitwise',it:c};
   return null;
 }
-function payFijo(f,k,who){
+function payFijo(f,k,who,real){
   if(!H.ready){toast('Primero armá el hogar (pestaña Hogar)');return false}
+  if(real!=null&&real>0){var P=cfg[f.key];if(P&&planAmt(P,k)!=null&&Math.round(planAmt(P,k))!==Math.round(real)){if(!P.over)P.over={};P.over[k]=Math.round(real);savePlan(f.key)}}
   var a=planAmt(cfg[f.key],k),sh=shareOf(f.key);
   if(!a){toast('Cargá el monto en Alquiler e ingresos');return false}
   if(sh>=100){toast('Tu parte está en 100%: no hay nada que repartir. Cambiala en Alquiler e ingresos');return false}
@@ -628,28 +632,33 @@ function payFijo(f,k,who){
   return true;
 }
 function pagosCard(k){
-  var act=FIJOS.filter(function(f){return planAmt(cfg[f.key],k)!=null});
+  var act=payables().filter(function(f){return planAmt(cfg[f.key],k)!=null});
   var items=cardItems(k),paid=cfg.cardPaid&&cfg.cardPaid[k],fn=fname();
   if(!act.length&&!items.length)return'';
-  var h='<div class="card"><h2>Quién pagó en '+e(mshort(k))+'</h2>'+(k<payFrom()?'<p class="note" style="margin-top:0">Este mes ya está dentro del saldo de Splitwise: no lo confirmes acá o se cuenta dos veces. El saldo nuevo empieza en '+e(mshort(payFrom()))+'.</p>':'')+'<table>';
+  var h='';
+  h='<div class="card"><h2>Quién pagó en '+e(mshort(k))+'</h2>'+(k<payFrom()?'<p class="note" style="margin-top:0">Este mes ya está dentro del saldo de Splitwise: no lo confirmes acá o se cuenta dos veces. El saldo nuevo empieza en '+e(mshort(payFrom()))+'.</p>':'');
+  h+=act.length?'<p class="note" style="margin-top:0">Poné el <b>monto real de la factura</b> y tocá quién pagó: se confirma ese monto para este mes (para los dos) y entra al saldo.</p>':'';
   act.forEach(function(f){
-    var tot=planAmt(cfg[f.key],k),sh=shareOf(f.key),st=fijoStatus(f,k),btn;
-    if(st&&st.by==='me')btn='<span class="chip ok">Lo pagaste vos</span> <button class="lnk payundo" data-f="'+f.key+'">deshacer</button>';
-    else if(st&&st.by==='other')btn='<span class="chip ok">Lo pagó '+e(nameOf(st.it.payer))+'</span> <button class="lnk payundo" data-f="'+f.key+'" data-by="other">deshacer</button>';
-    else if(st&&st.by==='splitwise')btn='<span class="chip">Ya está en Splitwise ('+e(nameOf(st.it.payer))+')</span>';
-    else btn='<div class="pbtn"><button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button><button class="pay" data-f="'+f.key+'" data-who="other">Lo pagó '+e(fn)+'</button></div>';
-    h+='<tr><td>'+e(f.label)+'<div class="note">Total '+money(tot)+' · tu parte '+sh+'%'+(!st?' · todavía no cuenta en el saldo':'')+'</div></td><td class="n">'+money(tot*sh/100)+'</td><td class="n">'+btn+'</td></tr>';
+    var tot=planAmt(cfg[f.key],k),sh=shareOf(f.key),st=fijoStatus(f,k),P=cfg[f.key],conf=!!(P&&P.over&&P.over[k]!=null),btn;
+    var chip=st&&st.by==='me'?'<span class="chip ok">Lo pagaste vos</span> <button class="lnk payundo" data-f="'+f.key+'">deshacer</button>':
+      st&&st.by==='other'?'<span class="chip ok">Lo pagó '+e(nameOf(st.it.payer))+'</span> <button class="lnk payundo" data-f="'+f.key+'" data-by="other">deshacer</button>':
+      st&&st.by==='splitwise'?'<span class="chip">Ya está en Splitwise ('+e(nameOf(st.it.payer))+')</span>':'';
+    h+='<div class="pfx"><div class="pfx-t"><span><b>'+e(f.label)+'</b><div class="note">'+(st?'Total '+money(tot)+(conf?' · monto confirmado':''):(conf?'Monto confirmado':'Estimado según el último monto')+' · tu parte '+sh+'%')+'</div></span><span class="n"><b>'+money(tot*sh/100)+'</b></span></div>';
+    if(chip)h+='<div class="pfx-b">'+chip+'</div>';
+    else h+='<div class="pfx-b"><label class="f">Monto real de la factura<input class="pamt" id="pa-'+f.key+'" inputmode="decimal" value="'+Math.round(tot)+'"></label><div class="pbtn"><button class="pri pay" data-f="'+f.key+'">Lo pagué yo</button><button class="pay" data-f="'+f.key+'" data-who="other">Lo pagó '+e(fn)+'</button></div></div>';
+    h+='</div>';
   });
+  if(items.length)h+='<table>';
   if(items.length){
     var flo=items.reduce(function(a,x){return a+x.t.amt-x.mine},0);
     h+='<tr><td>Resumen de tarjeta<div class="note">'+(paid?e(fn)+' te debe '+money(flo)+' por este resumen':'Confirmá abajo del resumen en Tarjetas')+'</div></td><td class="n">'+money(sumM(items))+'</td><td class="n">'+(paid?'<span class="chip ok">Lo pagaste vos</span>':'<button class="lnk" data-go="tarjetas">confirmar</button>')+'</td></tr>';
   }
-  h+='</table><p class="note">Al confirmar quién pagó, el reparto entra al saldo del Hogar y se salda junto con la vida diaria. Si lo pagó '+e(fn)+', tocá «Lo pagó '+e(fn)+'» y queda registrado sin que ella tenga que entrar.</p></div>';
+  h+=(items.length?'</table>':'')+'<p class="note">Al confirmar quién pagó, el reparto entra al saldo del Hogar y se salda junto con la vida diaria. Si lo pagó '+e(fn)+', tocá «Lo pagó '+e(fn)+'» y queda registrado sin que ella tenga que entrar.</p></div>';
   return h;
 }
 function bindPagos(v,k){
   v.querySelectorAll('.pay').forEach(function(b){b.addEventListener('click',function(){
-    var f=FIJOS.find(function(x){return x.key===b.dataset.f});if(payFijo(f,k,b.dataset.who)){toast('Confirmado: entra al saldo del Hogar');render()}})});
+    var f=payables().find(function(x){return x.key===b.dataset.f}),inp=v.querySelector('#pa-'+b.dataset.f),real=inp?parseNum(inp.value):null;if(inp&&(real==null||real<=0)){toast('Poné el monto real');return}if(payFijo(f,k,b.dataset.who,real)){toast('Confirmado: entra al saldo del Hogar');render()}})});
   v.querySelectorAll('.payundo').forEach(function(b){b.addEventListener('click',function(){hogarRemove('fijo-'+b.dataset.f+'-'+k,b.dataset.by==='other'?hogarOther():H.uid);render()})});
 }
 
@@ -744,7 +753,7 @@ function pendingPay(){
   var c0=curMonth(),m=payFrom();
   for(;m<=c0;m=shiftMonth(m,1)){
     var it=[];
-    FIJOS.forEach(function(f){if(planAmt(cfg[f.key],m)!=null&&shareOf(f.key)<100&&!fijoStatus(f,m))it.push(f.label)});
+    payables().forEach(function(f){if(planAmt(cfg[f.key],m)!=null&&shareOf(f.key)<100&&!fijoStatus(f,m))it.push(f.label)});
     if(cardItems(m).length&&!(cfg.cardPaid&&cfg.cardPaid[m]))it.push('Resumen de tarjeta');
     if(it.length)out.push({m:m,it:it});
   }
