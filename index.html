@@ -138,6 +138,10 @@ details.sec>summary .note{font-weight:400;font-size:12px}
 .minis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:10px}.mini{text-align:center;cursor:pointer}.mini .mt1{font-weight:600;font-size:13px;margin-top:4px}
 details.fold{margin:8px 0}details.fold>summary{cursor:pointer;font-size:14px;color:var(--acc,#0f6b5c)}
 .pfx{border-bottom:1px solid rgba(127,127,127,.18);padding:10px 0}.pfx-t .n{white-space:nowrap}.pfx-t{display:flex;justify-content:space-between;gap:10px}.pfx-b{margin-top:8px;display:flex;flex-direction:column;gap:8px}.pfx-b .f{font-size:12px}.pfx-b input{width:100%;font-size:16px}
+.lgd{border-bottom:1px solid rgba(127,127,127,.12)}.lgd>summary{list-style:none;cursor:pointer}.lgd>summary::-webkit-details-marker{display:none}.lgd>summary::after{content:'▸';margin-left:6px;font-size:11px;opacity:.6}.lgd[open]>summary::after{content:'▾'}
+.lgd>summary.lg{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.lgi{padding:2px 0 8px 17px}.li{display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13px}.li .ld{width:38px;flex:none;color:var(--mut,#777)}.li .lt{flex:1;min-width:0;overflow-wrap:anywhere}.li .n{white-space:nowrap}.li.lsum{border-top:1px solid rgba(127,127,127,.25);font-weight:600;margin-top:2px}
+.lgt{border-top:2px solid rgba(127,127,127,.3);margin-top:4px;padding-top:8px}
 </style>
 </head>
 <body>
@@ -688,15 +692,32 @@ function grpOf(cat,desc){
   return'Sin clasificar';
 }
 function hasReal(k){return (months[k]||[]).length>0||(H.ready&&(H.items[k]||[]).some(function(it){return it.type!=='pago'}))}
+
+function commDet(m){
+  var s=monthSummary(m),d={'Alquiler':[],'Expensas y servicios':[],'Cuotas de tarjeta':[],'Puntuales':[]};
+  function ad(n,desc,v,src,x){if(v>0)d[n].push({desc:desc,v:v,src:src,d:'',x:x||''})}
+  ad('Alquiler','Alquiler e impuestos',s.rent,'Plan fijo');
+  ad('Expensas y servicios','Expensas Tierralta',s.expT,'Plan fijo');ad('Expensas y servicios','Servicios del departamento',s.expS,'Plan fijo');
+  SVC.forEach(function(x){ad('Expensas y servicios',x.label,svcMine(x.key,m),'Servicio fijo')});
+  cuotasDelMes(m).forEach(function(c){ad('Cuotas de tarjeta',c.name,c.mine,'Tarjeta','cuota '+c.n+'/'+c.of)});
+  plannedFor(m).filter(function(p){return !p.auto}).forEach(function(p){ad('Puntuales',p.name,p.amt,'Puntual')});
+  Object.keys(d).forEach(function(n){d[n].sort(function(a,b){return b.v-a.v})});
+  return d;
+}
+function fmtD(d){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(d||'');return m?m[3]+'/'+m[2]:''}
 function monthGroups(k){
-  var g={},add=function(n,v){if(v)g[n]=(g[n]||0)+v},s=monthSummary(k);
-  add('Vivienda y servicios',s.rent+s.exp);
-  cardItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine)});
-  cuentaItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine)});
-  hogarDetail(k).forEach(function(x){add(grpOf(x.it.cat,x.it.desc),x.mine)});
-  plannedFor(k).filter(function(p){return !p.auto}).forEach(function(p){add('Puntuales',p.amt)});
+  var g={},it={},s=monthSummary(k);
+  var add=function(n,v,desc,src,d,x){if(!v)return;g[n]=(g[n]||0)+v;(it[n]=it[n]||[]).push({desc:desc||'(sin descripción)',v:v,src:src,d:d?fmtD(d):'',x:x||''})};
+  add('Vivienda y servicios',s.rent,'Alquiler e impuestos','Plan fijo');
+  add('Vivienda y servicios',s.expT,'Expensas Tierralta','Plan fijo');
+  add('Vivienda y servicios',s.expS,'Servicios del departamento','Plan fijo');
+  cardItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine,x.t.desc,'Tarjeta',x.t.od||x.t.d,x.of?'cuota '+x.n+'/'+x.of:'')});
+  cuentaItems(k).forEach(function(x){add(grpOf(x.t.cat,x.t.desc),x.mine,x.t.desc,'Cuenta',x.t.d)});
+  hogarDetail(k).forEach(function(x){add(grpOf(x.it.cat,x.it.desc),x.mine,x.it.desc,'Vida diaria',x.it.d)});
+  plannedFor(k).filter(function(p){return !p.auto}).forEach(function(p){add('Puntuales',p.amt,p.name,'Puntual')});
   var tot=0,pos=0;Object.keys(g).forEach(function(n){tot+=g[n];if(g[n]>0)pos+=g[n]});
-  return{g:g,total:tot,pos:pos};
+  Object.keys(it).forEach(function(n){it[n].sort(function(a,b){return b.v-a.v})});
+  return{g:g,it:it,total:tot,pos:pos};
 }
 function groupRank(mg){
   var rows=GRP.map(function(x){return{n:x[0],v:mg.g[x[0]]||0}}).filter(function(r){return r.v>0}).sort(function(a,b){return b.v-a.v});
@@ -735,7 +756,7 @@ function committedCard(){
   if(!list.some(function(x){return x.tot>0}))return hdr+'<p class="note">Todavía no hay alquiler, expensas ni cuotas cargados para los próximos meses.</p></div>';
   var mx=Math.max.apply(null,list.map(function(x){return x.tot}).concat([1]));
   var nx=list[0],nsl=[['Alquiler',nx.rent,'--g1'],['Expensas y servicios',nx.exp+nx.svc,'--g8'],['Cuotas de tarjeta',nx.cu,'--g3'],['Puntuales',nx.pun,'--g10']].map(function(x){return{n:x[0],v:x[1],c:'var('+x[2]+')'}}).filter(function(x){return x.v>0});
-  var h=hdr+'<h3 style="margin:10px 0 6px">'+e(mlabel(nx.k))+': '+money(nx.tot)+' comprometido</h3>'+donutBlock(nsl,170)+'<p class="note" style="margin-top:8px">Solo lo seguro según tus planes: alquiler, expensas, Ecogas, EPEC, AFIP e internet (al último monto que cargaste), con los aumentos que hayas cargado, cuotas de tarjeta ya financiadas y puntuales que cargaste. No incluye gastos del día a día ni promedios.</p><div class="chart small">'+list.map(function(x,ix){
+  var h=hdr+'<h3 style="margin:10px 0 6px">'+e(mlabel(nx.k))+': '+money(nx.tot)+' comprometido</h3>'+donutBlock(nsl,170,commDet(nx.k),nx.tot)+'<p class="note" style="margin-top:8px">Solo lo seguro según tus planes: alquiler, expensas, Ecogas, EPEC, AFIP e internet (al último monto que cargaste), con los aumentos que hayas cargado, cuotas de tarjeta ya financiadas y puntuales que cargaste. No incluye gastos del día a día ni promedios.</p><div class="chart small">'+list.map(function(x,ix){
     return'<div class="col'+(x.k===ui.month?' cur':'')+'" data-month="'+x.k+'"><div class="bw"><div class="stack">'+CSEG.map(function(g){var v=x[g[0]];return v>0?'<div class="seg" style="height:'+(v/mx*100)+'%;background:'+g[2]+'" title="'+mshort(x.k)+' · '+g[1]+': '+money(v)+'"></div>':''}).join('')+'</div></div><div class="lb">'+(n<=12||ix%3===0?mshort(x.k):'')+'</div></div>'}).join('')+'</div>'+
    '<div class="legend">'+CSEG.map(function(g){return'<span><i style="background:'+g[2]+'"></i>'+g[1]+'</span>'}).join('')+'</div>';
   var yr={};list.forEach(function(x){var y=x.k.slice(0,4),a=yr[y]||(yr[y]={n:0,re:0,cu:0,tot:0,inc:0});a.n++;a.re+=x.rent+x.exp+x.svc;a.cu+=x.cu;a.tot+=x.tot;a.inc+=x.inc});
@@ -769,12 +790,18 @@ function donut(sl,size,thick){
   sl.forEach(function(x){var len=x.v/tot*C;o+='<circle cx="50" cy="50" r="'+r+'" fill="none" stroke="'+x.c+'" stroke-width="'+thick+'" stroke-dasharray="'+len+' '+(C-len)+'" stroke-dashoffset="'+(-off)+'"><title>'+e(x.n)+': '+money(x.v)+'</title></circle>';off+=len});
   return o+'</svg>';
 }
-function legendList(sl){
+function legendList(sl,det){
   var tot=sl.reduce(function(a,x){return a+x.v},0);
-  return sl.map(function(x){return'<div class="lg"><span><i style="background:'+x.c+'"></i>'+e(x.n)+'</span><span><b>'+money(x.v)+'</b> <span class="note">'+Math.round(x.v/tot*100)+'%</span></span></div>'}).join('');
+  return sl.map(function(x){
+    var head='<span><i style="background:'+x.c+'"></i>'+e(x.n)+'</span><span><b>'+money(x.v)+'</b> <span class="note">'+Math.round(x.v/tot*100)+'%</span></span>',L=det&&det[x.n];
+    if(!L||!L.length)return'<div class="lg">'+head+'</div>';
+    return'<details class="lgd"><summary class="lg">'+head+'</summary><div class="lgi">'+L.map(function(r){return'<div class="li"><span class="ld">'+e(r.d)+'</span><span class="lt">'+e(r.desc)+'<span class="note"> '+e(r.src)+(r.x?' · '+e(r.x):'')+'</span></span><span class="n">'+money(r.v)+'</span></div>'}).join('')+
+      '<div class="li lsum"><span class="ld"></span><span class="lt">Suma de '+L.length+' '+(L.length===1?'movimiento':'movimientos')+'</span><span class="n">'+money(L.reduce(function(a,r){return a+r.v},0))+'</span></div>'+
+      (x.n==='Sin clasificar'?'<div class="li"><button class="lnk" data-go="mov" data-cat="General">Clasificar estos movimientos</button></div>':'')+'</div></details>';
+  }).join('');
 }
 function grpSlices(mg){return GRP.map(function(x){return{n:x[0],v:mg.g[x[0]]||0,c:gcol(x[0])}}).filter(function(r){return r.v>0}).sort(function(a,b){return b.v-a.v})}
-function donutBlock(sl,size){return sl.length?donut(sl,size||190,22)+'<div class="lgs">'+legendList(sl)+'</div>':'<p class="note">Todavía no hay gastos cargados.</p>'}
+function donutBlock(sl,size,det,total){return sl.length?donut(sl,size||190,22)+'<div class="lgs">'+legendList(sl,det)+(total!=null?'<div class="lg lgt"><span><b>Total del mes</b></span><span><b>'+money(total)+'</b></span></div>':'')+'<p class="note">Tocá un rubro para ver qué lo compone.</p></div>':'<p class="note">Todavía no hay gastos cargados.</p>'}
 function sec(id,title,sub,inner){
   var open=ui.sec&&ui.sec[id]!=null?ui.sec[id]:id==='now';
   return'<details class="sec" data-sec="'+id+'"'+(open?' open':'')+'><summary><span>'+title+'</span><span class="note">'+(sub||'')+'</span></summary><div class="sec-b">'+inner+'</div></details>';
@@ -802,7 +829,7 @@ function vMes(){
     A+='<div class="mnow">'+line('Ingreso',s.inc?money(s.inc):'—',s.incExtra?'Incluye extra '+money(s.incExtra):'')+line('Ya comprometido',money(comm),'Alquiler, expensas, servicios y cuotas')+
       (savARS?line('Ahorro del plan',money(savARS),usd(sav)):'')+
       '<div class="big"><div class="l">Queda antes del día a día</div><div class="v '+(s.inc?(s.inc-comm-savARS>=0?'good':'badc'):'')+'">'+(s.inc?money(s.inc-comm-savARS):'—')+'</div></div></div>'+
-      '<h3 style="margin:12px 0 6px">Lo comprometido de '+e(mshort(k))+'</h3>'+donutBlock(rs,170);
+      '<h3 style="margin:12px 0 6px">Lo comprometido de '+e(mshort(k))+'</h3>'+donutBlock(rs,170,commDet(k),comm);
   }else{
     var libre=s.inc-mg.total-savARS;
     A+='<div class="mnow">'+
@@ -811,7 +838,7 @@ function vMes(){
       (savARS?line('Deberías haber ahorrado',money(savARS),usd(sav)+' según tu meta · registrado '+usd(sg)+(sg>=sav-0.005?' ✓':' · faltan '+usd(sav-sg)),sg>=sav-0.005?'good':''):
         '<div class="ln"><span class="note">Ahorro del plan: cargá tu meta en <button class="lnk" data-go="ahorro">Ahorro</button> para verlo acá.</span></div>')+
       '<div class="big"><div class="l">Te sobra'+(savARS?' (después del ahorro)':'')+'</div><div class="v '+(s.inc?(libre>=0?'good':'badc'):'')+'">'+(s.inc?money(libre):'—')+'</div>'+(cfg.fx&&s.inc?'<div class="note">'+usd(libre/cfg.fx)+'</div>':'')+'</div></div>'+
-      '<h3 style="margin:14px 0 6px">En qué se fue la plata</h3>'+donutBlock(grpSlices(mg))+
+      '<h3 style="margin:14px 0 6px">En qué se fue la plata</h3>'+donutBlock(grpSlices(mg),190,mg.it,mg.total)+
       '<p class="note">Tu parte, no el total de la tarjeta. Lo que no tiene categoría se agrupó por palabras de la descripción (super, nafta, farmacia…); el resto queda en «Sin clasificar».</p>';
   }
   var B=pastBlock(k),C=committedCard()+quitCard();
